@@ -5,7 +5,7 @@ export function formatPrice(amount) {
     currency: 'INR',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(amount);
+  }).format(amount); 
 }
 
 export function formatDate(date) {
