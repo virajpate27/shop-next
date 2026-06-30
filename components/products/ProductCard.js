@@ -1,37 +1,41 @@
 // src/components/products/ProductCard.js
-'use client';
-import Image from 'next/image';
-import Link from 'next/link';
-import { ShoppingCart, Star, Heart } from 'lucide-react';
-import { toast } from 'sonner';
-import { useCartStore } from '@/store/cartStore';
-import { formatPrice, getDiscountPercent } from '@/utils/formatters';
-import { getOptimizedUrl } from '@/lib/cloudinary';
+'use client'
+import Image from 'next/image'
+import Link from 'next/link'
+import { ShoppingCart, Star, Heart } from 'lucide-react'
+import { toast } from 'sonner'
+import { useCartStore } from '@/store/cartStore'
+import { useWishlist } from '@/hooks/useWishlist'
+import { formatPrice, getDiscountPercent } from '@/utils/formatters'
+import { getOptimizedUrl } from '@/lib/cloudinary'
 
 export function ProductCard({ product }) {
-  const addItem = useCartStore((s) => s.addItem);
-  const discount = getDiscountPercent(product.price, product.comparePrice);
-  const imageUrl = getOptimizedUrl(product.images?.[0], {
-    width: 400,
-    height: 400,
-  });
+  const addItem = useCartStore((s) => s.addItem)
+  const { isWishlisted, toggle } = useWishlist()
+  const discount = getDiscountPercent(product.price, product.comparePrice)
+  const imageUrl = getOptimizedUrl(product.images?.[0], { width: 400, height: 400 })
+  const saved = isWishlisted(product.id)
 
   function handleAddToCart(e) {
-    e.preventDefault(); // don't navigate when clicking button inside <Link>
-    if (product.stock === 0) return;
+    e.preventDefault()
+    if (product.stock === 0) return
     addItem({
       productId: product.id,
       name: product.name,
       price: product.price,
       image: product.images?.[0] || '',
       stock: product.stock,
-    });
-    toast.success(`${product.name} added to cart`);
+    })
+    toast.success(`${product.name} added to cart`)
+  }
+
+  function handleWishlist(e) {
+    e.preventDefault()
+    toggle(product.id)
   }
 
   return (
     <div className="group relative bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-md hover:border-gray-200 transition-all duration-200">
-      {/* Image */}
       <Link href={`/products/${product.slug}`}>
         <div className="relative aspect-square bg-gray-50 overflow-hidden">
           {imageUrl ? (
@@ -48,7 +52,6 @@ export function ProductCard({ product }) {
             </div>
           )}
 
-          {/* Badges */}
           <div className="absolute top-3 left-3 flex flex-col gap-1.5">
             {discount && (
               <span className="bg-red-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
@@ -60,16 +63,22 @@ export function ProductCard({ product }) {
                 Out of stock
               </span>
             )}
-            {product.featured && (
-              <span className="bg-indigo-600 text-white text-[11px] font-medium px-2 py-0.5 rounded-full">
-                Featured
-              </span>
-            )}
           </div>
+
+          {/* Wishlist heart */}
+          <button
+            onClick={handleWishlist}
+            className="absolute top-3 right-3 w-8 h-8 bg-white/90 backdrop-blur rounded-full flex items-center justify-center hover:bg-white transition-colors shadow-sm"
+          >
+            <Heart
+              className={`w-4 h-4 transition-colors ${
+                saved ? 'fill-red-500 text-red-500' : 'text-gray-400'
+              }`}
+            />
+          </button>
         </div>
       </Link>
 
-      {/* Info */}
       <div className="p-4">
         <p className="text-[11px] text-gray-400 uppercase tracking-wider font-medium mb-1">
           {product.category}
@@ -81,7 +90,6 @@ export function ProductCard({ product }) {
           </h3>
         </Link>
 
-        {/* Rating */}
         {product.reviewCount > 0 && (
           <div className="flex items-center gap-1 mb-3">
             <div className="flex">
@@ -96,13 +104,10 @@ export function ProductCard({ product }) {
                 />
               ))}
             </div>
-            <span className="text-xs text-gray-500">
-              ({product.reviewCount})
-            </span>
+            <span className="text-xs text-gray-500">({product.reviewCount})</span>
           </div>
         )}
 
-        {/* Price + Add to cart */}
         <div className="flex items-center justify-between gap-2">
           <div>
             <span className="text-base font-bold text-gray-900">
@@ -126,5 +131,5 @@ export function ProductCard({ product }) {
         </div>
       </div>
     </div>
-  );
+  )
 }

@@ -1,6 +1,8 @@
 // src/store/cartStore.js
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+import { doc, setDoc, getDoc } from 'firebase/firestore'
+import { db } from '@/lib/firebase/config'
 
 export const useCartStore = create()(
   persist(
@@ -8,8 +10,8 @@ export const useCartStore = create()(
       items: [],
 
       addItem: (newItem) => {
-        const items = get().items;
-        const existing = items.find((i) => i.productId === newItem.productId);
+        const items = get().items
+        const existing = items.find((i) => i.productId === newItem.productId)
 
         if (existing) {
           set({
@@ -18,43 +20,64 @@ export const useCartStore = create()(
                 ? { ...i, quantity: Math.min(i.quantity + 1, i.stock) }
                 : i
             ),
-          });
+          })
         } else {
-          set({ items: [...items, { ...newItem, quantity: 1 }] });
+          set({ items: [...items, { ...newItem, quantity: 1 }] })
         }
       },
 
       removeItem: (productId) => {
-        set({ items: get().items.filter((i) => i.productId !== productId) });
+        set({ items: get().items.filter((i) => i.productId !== productId) })
       },
 
       updateQuantity: (productId, quantity) => {
         if (quantity <= 0) {
-          get().removeItem(productId);
-          return;
+          get().removeItem(productId)
+          return
         }
         set({
           items: get().items.map((i) =>
-            i.productId === productId ? { ...i, quantity } : i
+            i.productId === productId
+              ? { ...i, quantity: Math.min(quantity, i.stock) }
+              : i
           ),
-        });
+        })
       },
 
       clearCart: () => set({ items: [] }),
 
-      getTotal: () => {
-        return get().items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+      getTotal: () => get().items.reduce((sum, i) => sum + i.price * i.quantity, 0),
+      getItemCount: () => get().items.reduce((sum, i) => sum + i.quantity, 0),
+
+      // ── Firestore sync ──────────────────────────────────────────────────
+      syncToFirestore: async (userId) => {
+        if (!userId) return
+        try {
+          await setDoc(doc(db, 'carts', userId), {
+            items: get().items,
+            updatedAt: new Date().toISOString(),
+          })
+        } catch (err) {
+          console.error('Cart sync failed:', err)
+        }
       },
 
-      getItemCount: () => {
-        return get().items.reduce((sum, i) => sum + i.quantity, 0);
+      loadFromFirestore: async (userId) => {
+        if (!userId) return
+        try {
+          const snap = await getDoc(doc(db, 'carts', userId))
+          if (snap.exists() && snap.data().items?.length) {
+            // Merge: prefer existing local cart if it already has items
+            const localItems = get().items
+            if (localItems.length === 0) {
+              set({ items: snap.data().items })
+            }
+          }
+        } catch (err) {
+          console.error('Cart load failed:', err)
+        }
       },
-
-      getSubtotal: () =>
-        get().items.reduce((sum, i) => sum + i.price * i.quantity, 0),
     }),
-    {
-      name: 'shopnext-cart',
-    }
+    { name: 'shopnext-cart' }
   )
-);
+)
