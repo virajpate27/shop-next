@@ -44,7 +44,7 @@ export default function OrdersPage() {
             const toMs = (v) => (v?.toDate ? v.toDate().getTime() : 0)
             return toMs(b.createdAt) - toMs(a.createdAt)
           })
-        setOrders(results)
+        setOrders(results) 
       } catch (err) {
         console.error('Failed to load orders:', err)
       } finally {
