@@ -2,6 +2,7 @@
 'use client';
 import { useState } from 'react';
 import Image from 'next/image';
+import { ReviewSection } from '@/components/products/ReviewSection'
 import Link from 'next/link';
 import {
   ShoppingCart,
@@ -278,6 +279,11 @@ export function ProductDetailClient({ product, related }) {
           </div>
         </section>
       )}
+
+      {/* Reviews */}
+<ReviewSection productId={product.id} productName={product.name} />
+
+
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { useCartStore } from '@/store/cartStore'
 import { useWishlist } from '@/hooks/useWishlist'
 import { formatPrice, getDiscountPercent } from '@/utils/formatters'
 import { getOptimizedUrl } from '@/lib/cloudinary'
+import { DEFAULT_BLUR } from '@/utils/imageUtils'
 
 export function ProductCard({ product }) {
   const addItem = useCartStore((s) => s.addItem)
@@ -39,13 +40,15 @@ export function ProductCard({ product }) {
       <Link href={`/products/${product.slug}`}>
         <div className="relative aspect-square bg-gray-50 overflow-hidden">
           {imageUrl ? (
-            <Image
-              src={imageUrl}
-              alt={product.name}
-              fill
-              className="object-cover group-hover:scale-105 transition-transform duration-500"
-              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            />
+           <Image
+           src={imageUrl}
+           alt={product.name}
+           fill
+           placeholder="blur"
+           blurDataURL={DEFAULT_BLUR}
+           className="object-cover group-hover:scale-105 transition-transform duration-500"
+           sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+         />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-gray-300">
               <ShoppingCart className="w-10 h-10" />

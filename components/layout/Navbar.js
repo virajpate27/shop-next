@@ -8,7 +8,12 @@ import { toast } from 'sonner'
 import { useAuth } from '@/context/AuthContext'
 import { useCartStore } from '@/store/cartStore'
 import { logout } from '@/lib/firebase/auth'
-import { CartDrawer } from '@/components/cart/CartDrawer'
+import dynamic from 'next/dynamic'
+const CartDrawer = dynamic(
+  () => import('@/components/cart/CartDrawer').then((m) => m.CartDrawer),
+  { ssr: false }
+)
+
 
 export default function Navbar() {
   const { user, profile, isAdmin } = useAuth()

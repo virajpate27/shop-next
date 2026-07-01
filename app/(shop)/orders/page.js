@@ -8,6 +8,7 @@ import { Package, ChevronRight, Loader2 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { db } from '@/lib/firebase/config'
 import { formatPrice, formatDate } from '@/utils/formatters'
+import { OrderCardSkeleton } from '@/components/ui/Skeletons';
 
 const STATUS_STYLES = {
   pending: 'bg-yellow-50 text-yellow-700',
@@ -60,9 +61,11 @@ export default function OrdersPage() {
       <h1 className="text-2xl font-bold text-gray-900 mb-8">My orders</h1>
 
       {loading ? (
-        <div className="flex justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-        </div>
+       <div className="space-y-4">
+       {Array.from({ length: 4 }).map((_, i) => (
+         <OrderCardSkeleton key={i} />
+       ))}
+     </div>
       ) : orders.length === 0 ? (
         <div className="text-center py-20">
           <Package className="w-16 h-16 text-gray-200 mx-auto mb-4" />
