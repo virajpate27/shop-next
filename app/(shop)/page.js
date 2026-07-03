@@ -4,6 +4,8 @@ import { ArrowRight, Truck, Shield, RefreshCw, Headphones } from 'lucide-react'
 import { getFeaturedProducts } from '@/lib/firebase/products'
 import { ProductCard } from '@/components/products/ProductCard'
 import { getCategories } from '@/lib/firebase/categories' 
+import { useCategories } from '@/hooks/useCategories'
+
 
 export const metadata = {
   title: 'ShopNext — Premium Shopping',
@@ -53,14 +55,19 @@ export default async function HomePage() {
   let featuredProducts = []
   let categories = []
 
+  console.log(categories);
+ 
+
   try {
     ;[featuredProducts, categories] = await Promise.all([
       getFeaturedProducts(8),
       getCategories(),
     ])
-  } catch {
+
+    
+  } catch (error) {
+    console.error(error);
     featuredProducts = []
-    console.log(featuredProducts);
     categories = []
   }
 
@@ -135,6 +142,7 @@ export default async function HomePage() {
             </div>
           </section>
         )}
+
 
         {/* Categories */}
         {categories.length > 0 && (

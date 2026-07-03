@@ -56,19 +56,19 @@ export default function Navbar() {
             </Link>
 
             <nav className="hidden md:flex items-center gap-7">
-  <Link href="/products" className="text-sm text-gray-600 hover:text-indigo-600 transition-colors font-medium">
-    Products
-  </Link>
-  {categories.slice(0, 4).map((cat) => (
-    <Link
-      key={cat.slug}
-      href={`/products?category=${cat.slug}`}
-      className="text-sm text-gray-600 hover:text-indigo-600 transition-colors"
-    >
-      {cat.name}
-    </Link>
-  ))}
-</nav>
+              <Link href="/products" className="text-sm text-gray-600 hover:text-indigo-600 transition-colors font-medium">
+                Products
+              </Link>
+              {categories.slice(0, 4).map((cat) => (
+                <Link
+                  key={cat.slug}
+                  href={`/products?category=${cat.slug}`}
+                  className="text-sm text-gray-600 hover:text-indigo-600 transition-colors"
+                >
+                  {cat.name}
+                </Link>
+              ))}
+            </nav>
 
             <div className="flex items-center gap-2">
 
@@ -194,27 +194,27 @@ export default function Navbar() {
             </div>
           )}
 
-{menuOpen && (
-  <nav className="md:hidden py-4 border-t border-gray-50 space-y-1">
-    <Link
-      href="/products"
-      onClick={() => setMenuOpen(false)}
-      className="block px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
-    >
-      All Products
-    </Link>
-    {categories.map((cat) => (
-      <Link
-        key={cat.slug}
-        href={`/products?category=${cat.slug}`}
-        onClick={() => setMenuOpen(false)}
-        className="block px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
-      >
-        {cat.emoji} {cat.name}
-      </Link>
-    ))}
-  </nav>
-)}
+          {menuOpen && (
+            <nav className="md:hidden py-4 border-t border-gray-50 space-y-1">
+              <Link
+                href="/products"
+                onClick={() => setMenuOpen(false)}
+                className="block px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
+              >
+                All Products
+              </Link>
+              {categories.map((cat) => (
+                <Link
+                  key={cat.slug}
+                  href={`/products?category=${cat.slug}`}
+                  onClick={() => setMenuOpen(false)}
+                  className="block px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
+                >
+                  {cat.emoji} {cat.name}
+                </Link>
+              ))}
+            </nav>
+          )}
         </div>
       </header>
 

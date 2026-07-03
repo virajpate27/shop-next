@@ -23,7 +23,7 @@ export default function ProductsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { categories } = useCategories() 
-
+  console.log(categories);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);

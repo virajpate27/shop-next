@@ -18,6 +18,7 @@ import {
   verifyRazorpayPayment,
 } from '@/lib/razorpay'
 import { formatPrice } from '@/utils/formatters'
+import { triggerEmail } from '@/lib/triggerEmail'
 
 const STEPS = [
   { id: 1, label: 'Address', icon: MapPin },
@@ -165,6 +166,19 @@ export default function CheckoutPage() {
         // ── Cash on Delivery flow ──────────────────────────────────────
         const orderId = await createOrder(baseOrderData)
         clearCart()
+
+        // Customer confirmation
+        await triggerEmail('order_confirmed', user.email, {
+          order: { ...baseOrderData, status: 'confirmed' },
+          orderId,
+        })
+
+        // Admin alert
+        triggerEmail('admin_new_order', process.env.NEXT_PUBLIC_ADMIN_EMAIL, {
+          order: baseOrderData,
+          orderId,
+        })
+
         toast.success('Order placed successfully!')
         router.push(`/orders/${orderId}?success=true`)
         return
@@ -200,6 +214,14 @@ export default function CheckoutPage() {
         })
       } catch (err) {
         // User cancelled or payment failed
+        // Only send payment failed email if it wasn't a user cancellation
+        if (!err.message.includes('cancelled')) {
+          triggerEmail('payment_failed', user.email, {
+            displayName: profile?.displayName || 'there',
+            orderId,
+            amount: total,
+          })
+        }
         toast.error(err.message || 'Payment was not completed')
         setPlacingOrder(false)
         return
@@ -217,6 +239,19 @@ export default function CheckoutPage() {
       await updateOrderPayment(orderId, {
         razorpayOrderId: paymentResponse.razorpay_order_id,
         razorpayPaymentId: paymentResponse.razorpay_payment_id,
+      })
+
+
+      // Customer confirmation
+      await triggerEmail('order_confirmed', user.email, {
+        order: { ...baseOrderData, status: 'confirmed' },
+        orderId,
+      })
+
+      // Admin alert
+      triggerEmail('admin_new_order', process.env.NEXT_PUBLIC_ADMIN_EMAIL, {
+        order: baseOrderData,
+        orderId,
       })
 
       clearCart()
@@ -241,13 +276,12 @@ export default function CheckoutPage() {
           <div key={s.id} className="flex items-center">
             <div className="flex flex-col items-center gap-1.5">
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors ${
-                  step === s.id
-                    ? 'bg-indigo-600 border-indigo-600 text-white'
-                    : step > s.id
+                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors ${step === s.id
+                  ? 'bg-indigo-600 border-indigo-600 text-white'
+                  : step > s.id
                     ? 'bg-green-50 border-green-500 text-green-600'
                     : 'bg-white border-gray-200 text-gray-300'
-                }`}
+                  }`}
               >
                 {step > s.id ? <Check className="w-4 h-4" /> : <s.icon className="w-4 h-4" />}
               </div>
@@ -286,11 +320,10 @@ export default function CheckoutPage() {
                       {addresses.map((addr) => (
                         <label
                           key={addr.id}
-                          className={`flex items-start gap-3 border-2 rounded-xl p-4 cursor-pointer transition-colors ${
-                            selectedAddressId === addr.id
-                              ? 'border-indigo-500 bg-indigo-50/50'
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
+                          className={`flex items-start gap-3 border-2 rounded-xl p-4 cursor-pointer transition-colors ${selectedAddressId === addr.id
+                            ? 'border-indigo-500 bg-indigo-50/50'
+                            : 'border-gray-200 hover:border-gray-300'
+                            }`}
                         >
                           <input
                             type="radio"
@@ -471,11 +504,10 @@ export default function CheckoutPage() {
               <div className="space-y-3 mb-6">
                 {/* Razorpay option */}
                 <label
-                  className={`flex items-start gap-3 border-2 rounded-xl p-4 cursor-pointer transition-colors ${
-                    paymentMethod === 'razorpay'
-                      ? 'border-indigo-500 bg-indigo-50/50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                  className={`flex items-start gap-3 border-2 rounded-xl p-4 cursor-pointer transition-colors ${paymentMethod === 'razorpay'
+                    ? 'border-indigo-500 bg-indigo-50/50'
+                    : 'border-gray-200 hover:border-gray-300'
+                    }`}
                 >
                   <input
                     type="radio"
@@ -502,11 +534,10 @@ export default function CheckoutPage() {
 
                 {/* COD option */}
                 <label
-                  className={`flex items-start gap-3 border-2 rounded-xl p-4 cursor-pointer transition-colors ${
-                    paymentMethod === 'cod'
-                      ? 'border-indigo-500 bg-indigo-50/50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                  className={`flex items-start gap-3 border-2 rounded-xl p-4 cursor-pointer transition-colors ${paymentMethod === 'cod'
+                    ? 'border-indigo-500 bg-indigo-50/50'
+                    : 'border-gray-200 hover:border-gray-300'
+                    }`}
                 >
                   <input
                     type="radio"

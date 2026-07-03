@@ -12,6 +12,7 @@ import {
   Tooltip, CartesianGrid, BarChart, Bar,
 } from 'recharts'
 import { formatPrice, formatDate } from '@/utils/formatters'
+import { toast } from 'sonner'
 
 const STATUS_STYLES = {
   pending: 'bg-yellow-50 text-yellow-700',
@@ -305,6 +306,17 @@ export default function AdminDashboard() {
           <div className="flex items-center gap-2 mb-4">
             <AlertTriangle className="w-4 h-4 text-orange-500" />
             <h2 className="font-semibold text-gray-900">Stock alerts</h2>
+            <button
+  onClick={async () => {
+    const res = await fetch(`/api/email/low-stock?secret=${process.env.NEXT_PUBLIC_CRON_SECRET}`)
+    const data = await res.json()
+    if (data.success) toast.success(`Stock alert sent for ${data.alerted} products`)
+    else toast.error('Failed to send alert')
+  }}
+  className="mt-4 text-xs text-indigo-600 font-medium hover:underline"
+>
+  Send stock alert email
+</button>
           </div>
           {lowStockProducts.length === 0 ? (
             <p className="text-sm text-gray-400 py-6 text-center">All products well stocked</p>

@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { collection, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase/config'
 import { toast } from 'sonner'
+import { triggerEmail } from '@/lib/triggerEmail'
 import {
   Search, ChevronDown, X, Package, MapPin, Banknote,
   ShieldCheck, Loader2,
@@ -73,6 +74,22 @@ export default function AdminOrdersPage() {
         status: newStatus,
         updatedAt: serverTimestamp(),
       })
+
+        // Send status update email to customer
+    // (only for meaningful status changes, not every update)
+    const notifyStatuses = ['processing', 'shipped', 'delivered', 'cancelled']
+    if (notifyStatuses.includes(newStatus)) {
+      const order = orders.find((o) => o.id === orderId)
+      if (order?.customerEmail) {
+        triggerEmail('order_status', order.customerEmail, {
+          order,
+          orderId,
+          newStatus,
+        })
+      }
+    }
+
+
       toast.success(`Order marked as ${newStatus}`)
     } catch {
       toast.error('Failed to update order status')

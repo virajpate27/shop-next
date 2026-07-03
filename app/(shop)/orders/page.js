@@ -9,6 +9,7 @@ import { useAuth } from '@/context/AuthContext'
 import { db } from '@/lib/firebase/config'
 import { formatPrice, formatDate } from '@/utils/formatters'
 import { OrderCardSkeleton } from '@/components/ui/Skeletons';
+import { triggerEmail } from '@/lib/triggerEmail'
 
 const STATUS_STYLES = {
   pending: 'bg-yellow-50 text-yellow-700',

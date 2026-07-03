@@ -6,6 +6,7 @@ import { Toaster } from 'sonner'
 
 const inter = Inter({ subsets: ['latin'], display: 'swap' })
 
+
 export const metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
   title: {
