@@ -75,19 +75,19 @@ export default function AdminOrdersPage() {
         updatedAt: serverTimestamp(),
       })
 
-        // Send status update email to customer
-    // (only for meaningful status changes, not every update)
-    const notifyStatuses = ['processing', 'shipped', 'delivered', 'cancelled']
-    if (notifyStatuses.includes(newStatus)) {
-      const order = orders.find((o) => o.id === orderId)
-      if (order?.customerEmail) {
-        triggerEmail('order_status', order.customerEmail, {
-          order,
-          orderId,
-          newStatus,
-        })
+      // Send status update email to customer
+      // (only for meaningful status changes, not every update)
+      const notifyStatuses = ['processing', 'shipped', 'delivered', 'cancelled']
+      if (notifyStatuses.includes(newStatus)) {
+        const order = orders.find((o) => o.id === orderId)
+        if (order?.customerEmail) {
+          triggerEmail('order_status', order.customerEmail, {
+            order,
+            orderId,
+            newStatus,
+          })
+        }
       }
-    }
 
 
       toast.success(`Order marked as ${newStatus}`)
@@ -119,9 +119,8 @@ export default function AdminOrdersPage() {
       <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
         <button
           onClick={() => setStatusFilter('all')}
-          className={`px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-            statusFilter === 'all' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
+          className={`px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${statusFilter === 'all' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
         >
           All ({orderCounts.all})
         </button>
@@ -129,9 +128,8 @@ export default function AdminOrdersPage() {
           <button
             key={s}
             onClick={() => setStatusFilter(s)}
-            className={`px-3.5 py-1.5 rounded-full text-sm font-medium capitalize whitespace-nowrap transition-colors ${
-              statusFilter === s ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+            className={`px-3.5 py-1.5 rounded-full text-sm font-medium capitalize whitespace-nowrap transition-colors ${statusFilter === s ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
           >
             {s} ({orderCounts[s] || 0})
           </button>
@@ -323,6 +321,25 @@ export default function AdminOrdersPage() {
                   ))}
                 </div>
               </div>
+
+              {/* tax */}
+              {selectedOrder.totalTax > 0 && (
+                <div className="border-t border-gray-100 pt-4">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                    GST collected
+                  </p>
+                  {selectedOrder.taxBreakdown?.map((tb) => (
+                    <div key={tb.rate} className="flex justify-between text-xs text-gray-500 mb-1">
+                      <span>GST {tb.rate}% on {formatPrice(tb.baseAmount)}</span>
+                      <span className="font-medium">{formatPrice(tb.taxAmount)}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between text-sm font-semibold text-gray-900 pt-2 border-t border-gray-50 mt-1">
+                    <span>Total GST</span>
+                    <span>{formatPrice(selectedOrder.totalTax)}</span>
+                  </div>
+                </div>
+              )}
 
               {/* Payment summary */}
               <div className="border-t border-gray-100 pt-4 space-y-1.5">

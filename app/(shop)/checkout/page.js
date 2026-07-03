@@ -19,6 +19,7 @@ import {
 } from '@/lib/razorpay'
 import { formatPrice } from '@/utils/formatters'
 import { triggerEmail } from '@/lib/triggerEmail'
+import { calculateCartTax, getTaxBreakdown } from '@/utils/tax'
 
 const STEPS = [
   { id: 1, label: 'Address', icon: MapPin },
@@ -61,9 +62,16 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState('razorpay') // 'razorpay' | 'cod'
   const [placingOrder, setPlacingOrder] = useState(false)
 
-  const shipping = subtotal >= 499 || subtotal === 0 ? 0 : 49
+  const { subtotalBeforeTax, totalTaxAmount, totalAmount } = calculateCartTax(items)
+  const taxBreakdown = getTaxBreakdown(items)
+
+
+  const shipping = totalAmount >= 499 || totalAmount === 0 ? 0 : 49
   const codFee = paymentMethod === 'cod' ? 20 : 0
-  const total = subtotal + shipping + codFee
+  const total = totalAmount + shipping + codFee
+
+
+
 
   // ── Guards ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -136,6 +144,19 @@ export default function CheckoutPage() {
 
   const selectedAddress = addresses.find((a) => a.id === selectedAddressId)
 
+  async function confirmOrderStock(orderId, items) {
+    try {
+      await fetch('/api/orders/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, items }),
+      })
+    } catch (err) {
+      // Log but don't block the order — stock sync can retry later
+      console.error('Stock decrement failed:', err)
+    }
+  }
+
   // ── Place order ─────────────────────────────────────────────────────────
   async function handlePlaceOrder() {
     if (!selectedAddress) return toast.error('No address selected')
@@ -152,6 +173,9 @@ export default function CheckoutPage() {
     const baseOrderData = {
       userId: user.uid,
       items: orderItems,
+      subtotal: subtotalBeforeTax,
+      totalTax: totalTaxAmount,
+      taxBreakdown,
       subtotal,
       shipping,
       codFee,
@@ -165,6 +189,7 @@ export default function CheckoutPage() {
       if (paymentMethod === 'cod') {
         // ── Cash on Delivery flow ──────────────────────────────────────
         const orderId = await createOrder(baseOrderData)
+        await confirmOrderStock(orderId, orderItems)
         clearCart()
 
         // Customer confirmation
@@ -240,6 +265,8 @@ export default function CheckoutPage() {
         razorpayOrderId: paymentResponse.razorpay_order_id,
         razorpayPaymentId: paymentResponse.razorpay_payment_id,
       })
+
+      await confirmOrderStock(orderId, orderItems) 
 
 
       // Customer confirmation
@@ -667,17 +694,37 @@ export default function CheckoutPage() {
 
             <div className="space-y-3 mb-5">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Subtotal ({items.length} items)</span>
-                <span className="font-medium text-gray-900">{formatPrice(subtotal)}</span>
+                <span className="text-gray-500">
+                  Items ({items.length})
+                </span>
+                <span className="font-medium text-gray-900">
+                  {formatPrice(subtotalBeforeTax)}
+                </span>
               </div>
+
+              {/* Per-rate tax lines */}
+              {taxBreakdown.map((tb) => (
+                <div key={tb.rate} className="flex justify-between text-sm">
+                  <span className="text-gray-500 flex items-center gap-1.5">
+                    GST {tb.rate}%
+                  </span>
+                  <span className="font-medium text-gray-900">
+                    {formatPrice(tb.taxAmount)}
+                  </span>
+                </div>
+              ))}
+
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500 flex items-center gap-1.5">
                   <Truck className="w-3.5 h-3.5" /> Shipping
                 </span>
                 <span className="font-medium text-gray-900">
-                  {shipping === 0 ? <span className="text-green-600">Free</span> : formatPrice(shipping)}
+                  {shipping === 0
+                    ? <span className="text-green-600">Free</span>
+                    : formatPrice(shipping)}
                 </span>
               </div>
+
               {codFee > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">COD handling fee</span>
@@ -690,6 +737,12 @@ export default function CheckoutPage() {
               <span className="font-semibold text-gray-900">Total</span>
               <span className="text-xl font-bold text-gray-900">{formatPrice(total)}</span>
             </div>
+
+            {totalTaxAmount > 0 && (
+              <p className="text-xs text-gray-400 mt-2">
+                Incl. {formatPrice(totalTaxAmount)} GST
+              </p>
+            )}
 
             <div className="flex items-center gap-2 mt-4 text-xs text-gray-400">
               <ShieldCheck className="w-4 h-4" />

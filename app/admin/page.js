@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { collection, getDocs, query, orderBy, limit, onSnapshot } from 'firebase/firestore'
 import { db } from '@/lib/firebase/config'
+import { Receipt } from 'lucide-react'
 import {
   Package, ShoppingBag, Users, TrendingUp, IndianRupee,
   AlertTriangle, ArrowUpRight, ArrowDownRight,
@@ -93,6 +94,16 @@ export default function AdminDashboard() {
         return { label, revenue: dayRevenue }
       })
       setRevenueChart(chartData)
+
+
+      //GST collected
+      const totalTax = orders
+        .filter((o) => o.status !== 'cancelled')
+        .reduce((sum, o) => sum + (o.totalTax || 0), 0)
+
+      setStats((prev) => ({ ...prev, totalTax }))
+
+
     })
 
     // Products listener — for stock + category stats
@@ -126,6 +137,9 @@ export default function AdminDashboard() {
       setLoading(false)
     })
 
+
+
+
     return () => {
       ordersUnsub()
       productsUnsub()
@@ -158,6 +172,12 @@ export default function AdminDashboard() {
       value: stats.users,
       icon: Users,
       color: 'bg-purple-50 text-purple-600',
+    },
+    {
+      label: 'GST collected',
+      value: formatPrice(stats.totalTax || 0),
+      icon: Receipt,       // import Receipt from lucide-react
+      color: 'bg-amber-50 text-amber-600',
     },
   ]
 
@@ -307,16 +327,16 @@ export default function AdminDashboard() {
             <AlertTriangle className="w-4 h-4 text-orange-500" />
             <h2 className="font-semibold text-gray-900">Stock alerts</h2>
             <button
-  onClick={async () => {
-    const res = await fetch(`/api/email/low-stock?secret=${process.env.NEXT_PUBLIC_CRON_SECRET}`)
-    const data = await res.json()
-    if (data.success) toast.success(`Stock alert sent for ${data.alerted} products`)
-    else toast.error('Failed to send alert')
-  }}
-  className="mt-4 text-xs text-indigo-600 font-medium hover:underline"
->
-  Send stock alert email
-</button>
+              onClick={async () => {
+                const res = await fetch(`/api/email/low-stock?secret=${process.env.NEXT_PUBLIC_CRON_SECRET}`)
+                const data = await res.json()
+                if (data.success) toast.success(`Stock alert sent for ${data.alerted} products`)
+                else toast.error('Failed to send alert')
+              }}
+              className="mt-4 text-xs text-indigo-600 font-medium hover:underline"
+            >
+              Send stock alert email
+            </button>
           </div>
           {lowStockProducts.length === 0 ? (
             <p className="text-sm text-gray-400 py-6 text-center">All products well stocked</p>
@@ -326,9 +346,8 @@ export default function AdminDashboard() {
                 <div key={p.id} className="flex items-center justify-between">
                   <p className="text-sm text-gray-700 line-clamp-1 flex-1">{p.name}</p>
                   <span
-                    className={`text-xs font-semibold px-2 py-0.5 rounded-full ml-2 ${
-                      p.stock === 0 ? 'bg-red-50 text-red-600' : 'bg-orange-50 text-orange-600'
-                    }`}
+                    className={`text-xs font-semibold px-2 py-0.5 rounded-full ml-2 ${p.stock === 0 ? 'bg-red-50 text-red-600' : 'bg-orange-50 text-orange-600'
+                      }`}
                   >
                     {p.stock === 0 ? 'Out of stock' : `${p.stock} left`}
                   </span>

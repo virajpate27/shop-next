@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
+import { formatTaxRate } from '@/utils/tax'
 import {
   CheckCircle2, Package, MapPin, CreditCard, Banknote,
   Loader2, ChevronLeft,
@@ -163,6 +164,37 @@ export default function OrderDetailPage() {
               {order.shipping === 0 ? 'Free' : formatPrice(order.shipping)}
             </span>
           </div>
+
+          {order.taxBreakdown?.length > 0 && (
+            <div className="border-t border-gray-50 pt-3 mt-3 space-y-1.5">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                GST breakdown
+              </p>
+              {order.taxBreakdown.map((tb) => (
+                <div key={tb.rate}>
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>Taxable value @ {tb.rate}%</span>
+                    <span>{formatPrice(tb.baseAmount)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>CGST @ {tb.rate / 2}%</span>
+                    <span>{formatPrice(tb.cgst)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>SGST @ {tb.rate / 2}%</span>
+                    <span>{formatPrice(tb.sgst)}</span>
+                  </div>
+                </div>
+              ))}
+              <div className="flex justify-between text-xs font-semibold text-gray-700 pt-1 border-t border-gray-100">
+                <span>Total GST</span>
+                <span>{formatPrice(order.totalTax)}</span>
+              </div>
+            </div>
+          )}
+
+
+
           {order.codFee > 0 && (
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">COD handling fee</span>

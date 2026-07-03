@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { doc, setDoc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase/config'
+import { calculateCartTax } from '@/utils/tax'
 
 export const useCartStore = create()(
   persist(
@@ -26,15 +27,11 @@ export const useCartStore = create()(
         }
       },
 
-      removeItem: (productId) => {
-        set({ items: get().items.filter((i) => i.productId !== productId) })
-      },
+      removeItem: (productId) =>
+        set({ items: get().items.filter((i) => i.productId !== productId) }),
 
       updateQuantity: (productId, quantity) => {
-        if (quantity <= 0) {
-          get().removeItem(productId)
-          return
-        }
+        if (quantity <= 0) { get().removeItem(productId); return }
         set({
           items: get().items.map((i) =>
             i.productId === productId
@@ -46,8 +43,20 @@ export const useCartStore = create()(
 
       clearCart: () => set({ items: [] }),
 
-      getTotal: () => get().items.reduce((sum, i) => sum + i.price * i.quantity, 0),
-      getItemCount: () => get().items.reduce((sum, i) => sum + i.quantity, 0),
+      // ── Tax-aware totals ────────────────────────────────────────────────
+      getSubtotal: () =>
+        get().items.reduce((sum, i) => sum + i.price * i.quantity, 0),
+
+      getTaxSummary: () => calculateCartTax(get().items),
+
+      // Total including tax (for exclusive tax items, this is higher than subtotal)
+      getTotal: () => {
+        const { totalAmount } = calculateCartTax(get().items)
+        return totalAmount
+      },
+
+      getItemCount: () =>
+        get().items.reduce((sum, i) => sum + i.quantity, 0),
 
       // ── Firestore sync ──────────────────────────────────────────────────
       syncToFirestore: async (userId) => {
@@ -60,18 +69,14 @@ export const useCartStore = create()(
         } catch (err) {
           console.error('Cart sync failed:', err)
         }
-      },
+      }, 
 
       loadFromFirestore: async (userId) => {
         if (!userId) return
         try {
           const snap = await getDoc(doc(db, 'carts', userId))
           if (snap.exists() && snap.data().items?.length) {
-            // Merge: prefer existing local cart if it already has items
-            const localItems = get().items
-            if (localItems.length === 0) {
-              set({ items: snap.data().items })
-            }
+            if (get().items.length === 0) set({ items: snap.data().items })
           }
         } catch (err) {
           console.error('Cart load failed:', err)

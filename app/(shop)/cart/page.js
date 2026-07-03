@@ -6,6 +6,8 @@ import { Minus, Plus, Trash2, ShoppingBag, ArrowRight } from 'lucide-react'
 import { useCartStore } from '@/store/cartStore'
 import { formatPrice } from '@/utils/formatters'
 import { getOptimizedUrl } from '@/lib/cloudinary'
+import { calculateTax, calculateCartTax, getTaxBreakdown } from '@/utils/tax'
+
 
 export default function CartPage() {
   const items = useCartStore((s) => s.items)
@@ -14,7 +16,11 @@ export default function CartPage() {
   const clearCart = useCartStore((s) => s.clearCart)
   const subtotal = useCartStore((s) => s.getTotal())
 
-  const shipping = subtotal >= 499 || subtotal === 0 ? 0 : 49
+  const { subtotalBeforeTax, totalTaxAmount, totalAmount } = calculateCartTax(items)
+  const taxBreakdown = getTaxBreakdown(items)
+  const shipping = totalAmount >= 499 || totalAmount === 0 ? 0 : 49
+
+
   const total = subtotal + shipping
 
   if (items.length === 0) {
@@ -111,50 +117,69 @@ export default function CartPage() {
         </div>
 
         {/* Order summary */}
-        <div className="lg:col-span-1">
-          <div className="bg-white border border-gray-100 rounded-2xl p-6 sticky top-24">
-            <h2 className="font-bold text-gray-900 mb-5">Order summary</h2>
+        <div className="bg-white border border-gray-100 rounded-2xl p-6 sticky top-24">
+          <h2 className="font-bold text-gray-900 mb-5">Order summary</h2>
 
-            <div className="space-y-3 mb-5">
+          <div className="space-y-3 mb-4">
+
+            {/* Show base price only when there's exclusive tax */}
+            {taxBreakdown.some((t) => t.rate > 0) && (
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Subtotal (before tax)</span>
+                <span className="text-gray-900">{formatPrice(subtotalBeforeTax)}</span>
+              </div>
+            )}
+
+            {/* Per-rate tax breakdown */}
+            {taxBreakdown.map((tb) => (
+              <div key={tb.rate} className="flex justify-between text-sm">
+                <span className="text-gray-500">GST {tb.rate}%</span>
+                <span className="text-gray-900">{formatPrice(tb.taxAmount)}</span>
+              </div>
+            ))}
+
+            {taxBreakdown.length === 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Subtotal</span>
-                <span className="font-medium text-gray-900">{formatPrice(subtotal)}</span>
+                <span className="text-gray-900">{formatPrice(totalAmount)}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Shipping</span>
-                <span className="font-medium text-gray-900">
-                  {shipping === 0 ? (
-                    <span className="text-green-600">Free</span>
-                  ) : (
-                    formatPrice(shipping)
-                  )}
-                </span>
-              </div>
-              {shipping > 0 && (
-                <p className="text-xs text-indigo-600 bg-indigo-50 px-3 py-2 rounded-lg">
-                  Add {formatPrice(499 - subtotal)} more for free shipping
-                </p>
-              )}
+            )}
+
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Shipping</span>
+              <span className="font-medium">
+                {shipping === 0
+                  ? <span className="text-green-600">Free</span>
+                  : formatPrice(shipping)}
+              </span>
             </div>
 
-            <div className="flex justify-between items-baseline py-4 border-t border-gray-100 mb-5">
-              <span className="font-semibold text-gray-900">Total</span>
-              <span className="text-xl font-bold text-gray-900">{formatPrice(total)}</span>
-            </div>
-
-            <Link
-              href="/checkout"
-              className="block text-center bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3.5 rounded-xl transition-colors mb-3"
-            >
-              Proceed to checkout
-            </Link>
-            <Link
-              href="/products"
-              className="block text-center text-sm text-gray-500 hover:text-gray-700"
-            >
-              Continue shopping
-            </Link>
+            {shipping > 0 && totalAmount < 499 && (
+              <p className="text-xs text-indigo-600 bg-indigo-50 px-3 py-2 rounded-lg">
+                Add {formatPrice(499 - totalAmount)} more for free shipping
+              </p>
+            )}
           </div>
+
+          <div className="flex justify-between items-baseline py-4 border-t border-gray-100 mb-5">
+            <span className="font-semibold text-gray-900">Total</span>
+            <span className="text-xl font-bold text-gray-900">
+              {formatPrice(totalAmount + shipping)}
+            </span>
+          </div>
+
+          {totalTaxAmount > 0 && (
+            <p className="text-xs text-gray-400 mb-4">
+              Total tax included: {formatPrice(totalTaxAmount)}
+            </p>
+          )}
+
+          <Link
+            href="/checkout"
+            className="block text-center bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3.5 rounded-xl transition-colors mb-3"
+          >
+            Proceed to checkout
+          </Link>
         </div>
       </div>
     </div>

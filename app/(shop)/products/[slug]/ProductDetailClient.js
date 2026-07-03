@@ -21,11 +21,20 @@ import { useCartStore } from '@/store/cartStore';
 import { ProductCard } from '@/components/products/ProductCard';
 import { formatPrice, getDiscountPercent } from '@/utils/formatters';
 import { getOptimizedUrl } from '@/lib/cloudinary';
+import { calculateTax } from '@/utils/tax'
+import { TaxBadge } from '@/components/products/TaxBadge'
 
 export function ProductDetailClient({ product, related }) {
   const addItem = useCartStore((s) => s.addItem);
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
+
+  const taxDetails = calculateTax(
+    product.price,
+    product.taxRate || 0,
+    product.taxType || 'inclusive',
+    1
+  )
 
   const discount = getDiscountPercent(product.price, product.comparePrice);
 
@@ -37,6 +46,8 @@ export function ProductDetailClient({ product, related }) {
       price: product.price,
       image: product.images?.[0] || '',
       stock: product.stock,
+      taxRate: product.taxRate || 0,
+      taxType: product.taxType || 'inclusive',
     });
     // addItem increments by 1 each call — loop for quantity
     for (let i = 1; i < quantity; i++) {
@@ -104,11 +115,10 @@ export function ProductDetailClient({ product, related }) {
                 <button
                   key={i}
                   onClick={() => setSelectedImage(i)}
-                  className={`relative w-20 h-20 flex-shrink-0 rounded-xl overflow-hidden border-2 transition-all ${
-                    selectedImage === i
+                  className={`relative w-20 h-20 flex-shrink-0 rounded-xl overflow-hidden border-2 transition-all ${selectedImage === i
                       ? 'border-indigo-500'
                       : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                    }`}
                 >
                   <Image
                     src={getOptimizedUrl(img, { width: 160, height: 160 })}
@@ -139,11 +149,10 @@ export function ProductDetailClient({ product, related }) {
                 {[1, 2, 3, 4, 5].map((s) => (
                   <Star
                     key={s}
-                    className={`w-4 h-4 ${
-                      s <= Math.round(product.rating)
+                    className={`w-4 h-4 ${s <= Math.round(product.rating)
                         ? 'fill-amber-400 text-amber-400'
                         : 'fill-gray-200 text-gray-200'
-                    }`}
+                      }`}
                   />
                 ))}
               </div>
@@ -157,7 +166,7 @@ export function ProductDetailClient({ product, related }) {
           )}
 
           {/* Price */}
-          <div className="flex items-baseline gap-3 mb-6">
+          <div className="flex items-baseline gap-3 mb-2">
             <span className="text-3xl font-bold text-gray-900">
               {formatPrice(product.price)}
             </span>
@@ -168,8 +177,33 @@ export function ProductDetailClient({ product, related }) {
             )}
             {discount && (
               <span className="bg-green-50 text-green-700 text-sm font-semibold px-2.5 py-0.5 rounded-lg">
-                You save {formatPrice(product.comparePrice - product.price)}
+                Save {formatPrice(product.comparePrice - product.price)}
               </span>
+            )}
+          </div>
+
+
+          {/* Tax info line */}
+          <div className="flex items-center gap-2 mb-5">
+            {product.taxRate > 0 ? (
+              <>
+                <TaxBadge taxRate={product.taxRate} taxType={product.taxType} />
+                {product.taxType === 'inclusive' ? (
+                  <span className="text-xs text-gray-400">
+                    Incl. {formatPrice(taxDetails.taxAmount)} GST
+                    ({formatPrice(taxDetails.basePrice)} + tax)
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-400">
+                    + {formatPrice(taxDetails.taxAmount)} GST →{' '}
+                    <span className="font-medium text-gray-700">
+                      Total {formatPrice(taxDetails.totalPrice)}
+                    </span>
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="text-xs text-gray-400">No tax applicable</span>
             )}
           </div>
 
@@ -281,7 +315,7 @@ export function ProductDetailClient({ product, related }) {
       )}
 
       {/* Reviews */}
-<ReviewSection productId={product.id} productName={product.name} />
+      <ReviewSection productId={product.id} productName={product.name} />
 
 
     </div>

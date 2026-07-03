@@ -26,6 +26,8 @@ export function ProductCard({ product }) {
       price: product.price,
       image: product.images?.[0] || '',
       stock: product.stock,
+      taxRate: product.taxRate || 0,       
+      taxType: product.taxType || 'inclusive', 
     })
     toast.success(`${product.name} added to cart`)
   }

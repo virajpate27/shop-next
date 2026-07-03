@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { Plus, Pencil, Trash2, X, Upload, Loader2 } from 'lucide-react';
+import { TAX_RATES, TAX_TYPES } from '@/utils/tax'
 import { toast } from 'sonner';
 import {
   getProducts,
@@ -13,6 +14,7 @@ import {
 import { uploadImages } from '@/lib/cloudinary';
 import { formatPrice, generateSlug } from '@/utils/formatters';
 import { useCategories } from '@/hooks/useCategories'
+import { TaxPreview } from '@/components/admin/TaxPreview'
 
 const EMPTY_FORM = {
   name: '',
@@ -26,6 +28,9 @@ const EMPTY_FORM = {
   sku: '',
   featured: false,
   images: [],
+  taxRate: 0,
+  taxType: 'inclusive',
+  customTaxRate: '',
 };
 
 
@@ -81,6 +86,9 @@ export default function AdminProductsPage() {
       sku: product.sku || '',
       featured: product.featured || false,
       images: product.images || [],
+      taxRate: product.taxRate ?? 0,
+      taxType: product.taxType || 'inclusive',
+      customTaxRate: product.customTaxRate || '',
     });
     setPreviewUrls(product.images || []);
     setShowModal(true);
@@ -160,6 +168,10 @@ export default function AdminProductsPage() {
         sku: form.sku.trim(),
         featured: form.featured,
         images: form.images,
+        taxRate: form.taxRate === 'custom'
+          ? Number(form.customTaxRate) || 0
+          : Number(form.taxRate),
+        taxType: form.taxType,
       };
 
       if (editing) {
@@ -266,10 +278,10 @@ export default function AdminProductsPage() {
                   <td className="px-4 py-3">
                     <span
                       className={`text-xs font-medium px-2 py-0.5 rounded-full ${p.stock === 0
-                          ? 'bg-red-50 text-red-600'
-                          : p.stock <= 10
-                            ? 'bg-orange-50 text-orange-600'
-                            : 'bg-green-50 text-green-600'
+                        ? 'bg-red-50 text-red-600'
+                        : p.stock <= 10
+                          ? 'bg-orange-50 text-orange-600'
+                          : 'bg-green-50 text-green-600'
                         }`}
                     >
                       {p.stock === 0 ? 'Out of stock' : `${p.stock} units`}
@@ -504,6 +516,99 @@ export default function AdminProductsPage() {
                     required
                   />
                 </div>
+              </div>
+
+              {/* Tax */}
+              <div className="border-t border-gray-100 pt-5">
+                <p className="text-sm font-medium text-gray-700 mb-4">
+                  Tax configuration
+                </p>
+
+                {/* Tax rate */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Tax rate
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {TAX_RATES.map((rate) => (
+                      <button
+                        key={rate.value}
+                        type="button"
+                        onClick={() => setForm((prev) => ({
+                          ...prev,
+                          taxRate: rate.value,
+                          customTaxRate: rate.value === 'custom' ? prev.customTaxRate : '',
+                        }))}
+                        className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors border ${form.taxRate === rate.value
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                          }`}
+                      >
+                        {rate.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Custom rate input */}
+                  {form.taxRate === 'custom' && (
+                    <div className="mt-3 flex items-center gap-2">
+                      <input
+                        type="number"
+                        name="customTaxRate"
+                        value={form.customTaxRate}
+                        onChange={handleChange}
+                        placeholder="Enter custom rate"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        className="w-40 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                      <span className="text-sm text-gray-500">%</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Tax type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tax type
+                  </label>
+                  <div className="space-y-2">
+                    {TAX_TYPES.map((type) => (
+                      <label
+                        key={type.value}
+                        className={`flex items-start gap-3 border-2 rounded-xl p-3.5 cursor-pointer transition-colors ${form.taxType === type.value
+                          ? 'border-indigo-500 bg-indigo-50/40'
+                          : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                      >
+                        <input
+                          type="radio"
+                          name="taxType"
+                          value={type.value}
+                          checked={form.taxType === type.value}
+                          onChange={handleChange}
+                          className="mt-0.5 accent-indigo-600"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{type.label}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{type.desc}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Live preview */}
+                {form.price && Number(form.taxRate) > 0 && (
+                  <TaxPreview
+                    price={Number(form.price)}
+                    taxRate={form.taxRate === 'custom'
+                      ? Number(form.customTaxRate) || 0
+                      : Number(form.taxRate)}
+                    taxType={form.taxType}
+                  />
+                )}
               </div>
 
               {/* Tags */}
