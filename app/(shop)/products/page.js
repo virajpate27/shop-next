@@ -5,29 +5,24 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { X, ChevronDown, Loader2 } from 'lucide-react';
 import { getProducts } from '@/lib/firebase/products';
 import { ProductGrid } from '@/components/products/ProductGrid';
+import { useCategories } from '@/hooks/useCategories'
 import { ProductGridSkeleton } from '@/components/products/ProductSkeleton';
 
-const CATEGORIES = [
-  { value: 'electronics', label: 'Electronics' },
-  { value: 'fashion', label: 'Fashion' },
-  { value: 'home', label: 'Home & Kitchen' },
-  { value: 'sports', label: 'Sports' },
-  { value: 'books', label: 'Books' },
-  { value: 'beauty', label: 'Beauty' },
-];
+
 
 const SORT_OPTIONS = [
   { value: 'newest', label: 'Newest first' },
   { value: 'popular', label: 'Most popular' },
   { value: 'price_asc', label: 'Price: low to high' },
   { value: 'price_desc', label: 'Price: high to low' },
-];
+]
 
 const PAGE_SIZE = 12;
 
 export default function ProductsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { categories } = useCategories() 
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -120,7 +115,7 @@ export default function ProductsPage() {
   const pageTitle = search
     ? `Results for "${search}"`
     : category
-    ? CATEGORIES.find((c) => c.value === category)?.label ?? 'Products'
+    ? categories.find((c) => c.value === category)?.label ?? 'Products'
     : 'All Products';
 
   return (
@@ -151,17 +146,18 @@ export default function ProductsPage() {
             All
           </button>
 
-          {CATEGORIES.map((cat) => (
+          {categories.map((cat) => (
             <button
-              key={cat.value}
-              onClick={() => updateParam('category', cat.value)}
+              key={cat.slug}
+              onClick={() => updateParam('category', cat.slug)}
               className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                category === cat.value
+                category === cat.slug
                   ? 'bg-indigo-600 text-white shadow-sm'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              {cat.label}
+              {cat.emoji && <span className="mr-1.5">{cat.emoji}</span>}
+              {cat.name}
             </button>
           ))}
         </div>

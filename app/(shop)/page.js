@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { ArrowRight, Truck, Shield, RefreshCw, Headphones } from 'lucide-react'
 import { getFeaturedProducts } from '@/lib/firebase/products'
 import { ProductCard } from '@/components/products/ProductCard'
+import { getCategories } from '@/lib/firebase/categories' 
 
 export const metadata = {
   title: 'ShopNext — Premium Shopping',
@@ -20,14 +21,7 @@ const features = [
   { icon: Headphones, title: '24/7 support', desc: 'Always here to help' },
 ]
 
-const categories = [
-  { name: 'Electronics', slug: 'electronics', emoji: '📱', color: 'bg-blue-50 hover:bg-blue-100' },
-  { name: 'Fashion', slug: 'fashion', emoji: '👗', color: 'bg-pink-50 hover:bg-pink-100' },
-  { name: 'Home & Kitchen', slug: 'home', emoji: '🏠', color: 'bg-amber-50 hover:bg-amber-100' },
-  { name: 'Sports', slug: 'sports', emoji: '⚽', color: 'bg-green-50 hover:bg-green-100' },
-  { name: 'Books', slug: 'books', emoji: '📚', color: 'bg-purple-50 hover:bg-purple-100' },
-  { name: 'Beauty', slug: 'beauty', emoji: '💄', color: 'bg-rose-50 hover:bg-rose-100' },
-]
+
 
 // JSON-LD structured data for Google
 function WebsiteSchema() {
@@ -57,10 +51,17 @@ function WebsiteSchema() {
 export default async function HomePage() {
   // Server-side fetch for featured products — no loading state needed
   let featuredProducts = []
+  let categories = []
+
   try {
-    featuredProducts = await getFeaturedProducts(8)
+    ;[featuredProducts, categories] = await Promise.all([
+      getFeaturedProducts(8),
+      getCategories(),
+    ])
   } catch {
     featuredProducts = []
+    console.log(featuredProducts);
+    categories = []
   }
 
   return (
@@ -136,6 +137,7 @@ export default async function HomePage() {
         )}
 
         {/* Categories */}
+        {categories.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 py-14">
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-2xl font-bold text-gray-900">Shop by category</h2>
@@ -146,11 +148,11 @@ export default async function HomePage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
             {categories.map((cat) => (
               <Link
-                key={cat.slug}
+                key={cat.id}
                 href={`/products?category=${cat.slug}`}
-                className={`${cat.color} rounded-2xl p-5 text-center transition-colors group`}
+                className="bg-gray-50 hover:bg-indigo-50 rounded-2xl p-5 text-center transition-colors group"
               >
-                <div className="text-3xl mb-2">{cat.emoji}</div>
+                <div className="text-3xl mb-2">{cat.emoji || '📦'}</div>
                 <p className="text-sm font-medium text-gray-800 group-hover:text-indigo-700 transition-colors">
                   {cat.name}
                 </p>
@@ -158,6 +160,7 @@ export default async function HomePage() {
             ))}
           </div>
         </section>
+      )}
 
         {/* CTA banner */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 pb-14">

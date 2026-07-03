@@ -2,6 +2,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
+import { useCategories } from '@/hooks/useCategories'
 import { useRouter } from 'next/navigation'
 import { ShoppingBag, ShoppingCart, User, Search, Menu, X, Heart, LogOut, Settings } from 'lucide-react'
 import { toast } from 'sonner'
@@ -24,6 +25,8 @@ export default function Navbar() {
   const [cartOpen, setCartOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const router = useRouter()
+
+  const { categories } = useCategories()
 
   async function handleLogout() {
     await logout()
@@ -53,19 +56,19 @@ export default function Navbar() {
             </Link>
 
             <nav className="hidden md:flex items-center gap-7">
-              <Link href="/products" className="text-sm text-gray-600 hover:text-indigo-600 transition-colors font-medium">
-                Products
-              </Link>
-              <Link href="/products?category=electronics" className="text-sm text-gray-600 hover:text-indigo-600 transition-colors">
-                Electronics
-              </Link>
-              <Link href="/products?category=fashion" className="text-sm text-gray-600 hover:text-indigo-600 transition-colors">
-                Fashion
-              </Link>
-              <Link href="/products?category=home" className="text-sm text-gray-600 hover:text-indigo-600 transition-colors">
-                Home
-              </Link>
-            </nav>
+  <Link href="/products" className="text-sm text-gray-600 hover:text-indigo-600 transition-colors font-medium">
+    Products
+  </Link>
+  {categories.slice(0, 4).map((cat) => (
+    <Link
+      key={cat.slug}
+      href={`/products?category=${cat.slug}`}
+      className="text-sm text-gray-600 hover:text-indigo-600 transition-colors"
+    >
+      {cat.name}
+    </Link>
+  ))}
+</nav>
 
             <div className="flex items-center gap-2">
 
@@ -191,25 +194,27 @@ export default function Navbar() {
             </div>
           )}
 
-          {menuOpen && (
-            <nav className="md:hidden py-4 border-t border-gray-50 space-y-1">
-              {[
-                { href: '/products', label: 'All Products' },
-                { href: '/products?category=electronics', label: 'Electronics' },
-                { href: '/products?category=fashion', label: 'Fashion' },
-                { href: '/products?category=home', label: 'Home & Kitchen' },
-              ].map(({ href, label }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  onClick={() => setMenuOpen(false)}
-                  className="block px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
-                >
-                  {label}
-                </Link>
-              ))}
-            </nav>
-          )}
+{menuOpen && (
+  <nav className="md:hidden py-4 border-t border-gray-50 space-y-1">
+    <Link
+      href="/products"
+      onClick={() => setMenuOpen(false)}
+      className="block px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
+    >
+      All Products
+    </Link>
+    {categories.map((cat) => (
+      <Link
+        key={cat.slug}
+        href={`/products?category=${cat.slug}`}
+        onClick={() => setMenuOpen(false)}
+        className="block px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
+      >
+        {cat.emoji} {cat.name}
+      </Link>
+    ))}
+  </nav>
+)}
         </div>
       </header>
 

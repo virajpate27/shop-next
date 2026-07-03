@@ -12,6 +12,7 @@ import {
 } from '@/lib/firebase/products';
 import { uploadImages } from '@/lib/cloudinary';
 import { formatPrice, generateSlug } from '@/utils/formatters';
+import { useCategories } from '@/hooks/useCategories'
 
 const EMPTY_FORM = {
   name: '',
@@ -27,14 +28,9 @@ const EMPTY_FORM = {
   images: [],
 };
 
-const CATEGORIES = [
-  'electronics',
-  'fashion',
-  'home',
-  'sports',
-  'books',
-  'beauty',
-];
+
+
+
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState([]);
@@ -46,6 +42,7 @@ export default function AdminProductsPage() {
   const [uploading, setUploading] = useState(false);
   const [previewUrls, setPreviewUrls] = useState([]);
   const fileInputRef = useRef(null);
+  const { categories } = useCategories()
 
   useEffect(() => {
     fetchProducts();
@@ -155,9 +152,9 @@ export default function AdminProductsPage() {
         category: form.category,
         tags: form.tags
           ? form.tags
-              .split(',')
-              .map((t) => t.trim())
-              .filter(Boolean)
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean)
           : [],
         stock: Number(form.stock),
         sku: form.sku.trim(),
@@ -268,13 +265,12 @@ export default function AdminProductsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span
-                      className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        p.stock === 0
+                      className={`text-xs font-medium px-2 py-0.5 rounded-full ${p.stock === 0
                           ? 'bg-red-50 text-red-600'
                           : p.stock <= 10
-                          ? 'bg-orange-50 text-orange-600'
-                          : 'bg-green-50 text-green-600'
-                      }`}
+                            ? 'bg-orange-50 text-orange-600'
+                            : 'bg-green-50 text-green-600'
+                        }`}
                     >
                       {p.stock === 0 ? 'Out of stock' : `${p.stock} units`}
                     </span>
@@ -473,10 +469,10 @@ export default function AdminProductsPage() {
                     className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
                     required
                   >
-                    <option value="">Select...</option>
-                    {CATEGORIES.map((c) => (
-                      <option key={c} value={c} className="capitalize">
-                        {c}
+                    <option value="">Select category...</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.slug}>
+                        {cat.emoji} {cat.name}
                       </option>
                     ))}
                   </select>
