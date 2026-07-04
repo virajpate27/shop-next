@@ -10,18 +10,28 @@ import { calculateTax, calculateCartTax, getTaxBreakdown } from '@/utils/tax'
 
 
 export default function CartPage() {
+  
+  
   const items = useCartStore((s) => s.items)
+  const clearCart = useCartStore((s) => s.clearCart)
   const updateQuantity = useCartStore((s) => s.updateQuantity)
   const removeItem = useCartStore((s) => s.removeItem)
-  const clearCart = useCartStore((s) => s.clearCart)
-  const subtotal = useCartStore((s) => s.getTotal())
+
+
 
   const { subtotalBeforeTax, totalTaxAmount, totalAmount } = calculateCartTax(items)
   const taxBreakdown = getTaxBreakdown(items)
-  const shipping = totalAmount >= 499 || totalAmount === 0 ? 0 : 49
+
+  const safeTotal = isNaN(totalAmount)
+    ? items.reduce((s, i) => s + (Number(i.price) || 0) * (Number(i.quantity) || 1), 0)
+    : totalAmount
+
+  const shipping = safeTotal >= 499 || safeTotal === 0 ? 0 : 49
+  const grandTotal = safeTotal + shipping
 
 
-  const total = subtotal + shipping
+
+  // const total = subtotal + shipping
 
   if (items.length === 0) {
     return (

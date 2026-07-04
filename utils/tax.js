@@ -33,43 +33,44 @@ export const TAX_RATES = [
    * @returns {{ basePrice, taxAmount, totalPrice, taxRate, taxType }}
    */
   export function calculateTax(price, taxRate = 0, taxType = 'inclusive', quantity = 1) {
-    const rate = Number(taxRate) || 0
-    const qty = Number(quantity) || 1
-    const unitPrice = Number(price) || 0
+    // ✅ Sanitize all inputs — treat undefined/null/NaN as 0
+    const rate = isNaN(Number(taxRate)) ? 0 : Math.max(0, Number(taxRate) || 0)
+    const qty  = isNaN(Number(quantity)) ? 1 : Math.max(1, Number(quantity) || 1)
+    const unitPrice = isNaN(Number(price)) ? 0 : Math.max(0, Number(price) || 0)
+    const type = taxType === 'exclusive' ? 'exclusive' : 'inclusive'
   
-    if (rate === 0) {
+    if (rate === 0 || unitPrice === 0) {
       return {
-        basePrice: unitPrice,
-        taxAmount: 0,
-        totalPrice: unitPrice,
-        taxPerUnit: 0,
-        taxRate: 0,
-        taxType,
+        basePrice:    unitPrice,
+        taxAmount:    0,
+        taxPerUnit:   0,
+        totalPrice:   unitPrice,
+        totalWithQty: round2(unitPrice * qty),
+        taxRate:      0,
+        taxType:      type,
       }
     }
   
     let basePrice, taxPerUnit, totalPrice
   
-    if (taxType === 'inclusive') {
-      // Tax is baked into the price — extract it
-      basePrice = unitPrice / (1 + rate / 100)
+    if (type === 'inclusive') {
+      basePrice  = unitPrice / (1 + rate / 100)
       taxPerUnit = unitPrice - basePrice
-      totalPrice = unitPrice // price already includes tax
+      totalPrice = unitPrice
     } else {
-      // Tax is added on top
-      basePrice = unitPrice
+      basePrice  = unitPrice
       taxPerUnit = unitPrice * (rate / 100)
       totalPrice = unitPrice + taxPerUnit
     }
   
     return {
-      basePrice: round2(basePrice),
-      taxAmount: round2(taxPerUnit * qty),
-      taxPerUnit: round2(taxPerUnit),
-      totalPrice: round2(totalPrice),
+      basePrice:    round2(basePrice),
+      taxAmount:    round2(taxPerUnit * qty),
+      taxPerUnit:   round2(taxPerUnit),
+      totalPrice:   round2(totalPrice),
       totalWithQty: round2(totalPrice * qty),
-      taxRate: rate,
-      taxType,
+      taxRate:      rate,
+      taxType:      type,
     }
   }
   
@@ -78,21 +79,32 @@ export const TAX_RATES = [
    * Each item carries its own taxRate + taxType from the product.
    */
   export function calculateCartTax(items) {
+    // ✅ Guard against empty or invalid items array
+    if (!items?.length) {
+      return {
+        breakdown:          [],
+        subtotalBeforeTax:  0,
+        totalTaxAmount:     0,
+        totalAmount:        0,
+      }
+    }
+  
     let subtotalBeforeTax = 0
-    let totalTaxAmount = 0
-    let totalAmount = 0
+    let totalTaxAmount    = 0
+    let totalAmount       = 0
   
     const breakdown = items.map((item) => {
-      const tax = calculateTax(
-        item.price,
-        item.taxRate || 0,
-        item.taxType || 'inclusive',
-        item.quantity
-      )
+      // ✅ Always fall back to safe defaults
+      const price    = Number(item.price)    || 0
+      const qty      = Number(item.quantity) || 1
+      const taxRate  = Number(item.taxRate)  || 0   // undefined → 0
+      const taxType  = item.taxType || 'inclusive'
   
-      subtotalBeforeTax += tax.basePrice * item.quantity
-      totalTaxAmount += tax.taxAmount
-      totalAmount += tax.totalWithQty
+      const tax = calculateTax(price, taxRate, taxType, qty)
+  
+      subtotalBeforeTax += tax.basePrice * qty
+      totalTaxAmount    += tax.taxAmount
+      totalAmount       += tax.totalWithQty
   
       return { ...item, tax }
     })
@@ -100,8 +112,8 @@ export const TAX_RATES = [
     return {
       breakdown,
       subtotalBeforeTax: round2(subtotalBeforeTax),
-      totalTaxAmount: round2(totalTaxAmount),
-      totalAmount: round2(totalAmount),
+      totalTaxAmount:    round2(totalTaxAmount),
+      totalAmount:       round2(totalAmount),
     }
   }
   
