@@ -1,14 +1,15 @@
-// src/app/(shop)/checkout/page.js
 'use client'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-  MapPin, CreditCard, Truck, Check, ChevronLeft,
-  Loader2, Plus, Banknote, ShieldCheck,
+  MapPin, CreditCard, Check, ChevronLeft,
+  Loader2, Plus, Banknote, ShieldCheck, Truck, Tag,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useCartStore } from '@/store/cartStore'
+import { useShipping } from '@/hooks/useShipping'
+import { calculateCartTax, getTaxBreakdown } from '@/utils/tax'
 import { getAddresses, addAddress } from '@/lib/firebase/addresses'
 import { createOrder, updateOrderPayment } from '@/lib/firebase/orders'
 import {
@@ -17,15 +18,14 @@ import {
   openRazorpayCheckout,
   verifyRazorpayPayment,
 } from '@/lib/razorpay'
-import { formatPrice } from '@/utils/formatters'
 import { triggerEmail } from '@/lib/triggerEmail'
-import { calculateCartTax, getTaxBreakdown } from '@/utils/tax'
-import { useShipping } from '@/hooks/useShipping'
+import { formatPrice } from '@/utils/formatters'
 
+// ── Constants ──────────────────────────────────────────────────────────────
 const STEPS = [
   { id: 1, label: 'Address', icon: MapPin },
   { id: 2, label: 'Payment', icon: CreditCard },
-  { id: 3, label: 'Review', icon: Check },
+  { id: 3, label: 'Review',  icon: Check },
 ]
 
 const EMPTY_ADDRESS = {
@@ -40,49 +40,54 @@ const EMPTY_ADDRESS = {
 }
 
 const INDIAN_STATES = [
-  'Andhra Pradesh', 'Bihar', 'Delhi', 'Goa', 'Gujarat', 'Karnataka', 'Kerala',
-  'Madhya Pradesh', 'Maharashtra', 'Punjab', 'Rajasthan', 'Tamil Nadu',
-  'Telangana', 'Uttar Pradesh', 'West Bengal',
+  'Andhra Pradesh', 'Bihar', 'Delhi', 'Goa', 'Gujarat',
+  'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra',
+  'Punjab', 'Rajasthan', 'Tamil Nadu', 'Telangana',
+  'Uttar Pradesh', 'West Bengal',
 ]
 
+// ── Component ──────────────────────────────────────────────────────────────
 export default function CheckoutPage() {
-  const { user, loading: authLoading } = useAuth()
+  const { user, profile, loading: authLoading } = useAuth()
   const router = useRouter()
-  const items = useCartStore((s) => s.items)
-  const subtotal = useCartStore((s) => s.getTotal())
-  const clearCart = useCartStore((s) => s.clearCart)
 
-  const [step, setStep] = useState(1)
-  const [addresses, setAddresses] = useState([])
-  const [loadingAddresses, setLoadingAddresses] = useState(true)
-  const [selectedAddressId, setSelectedAddressId] = useState(null)
-  const [showAddForm, setShowAddForm] = useState(false)
-  const [addressForm, setAddressForm] = useState(EMPTY_ADDRESS)
-  const [savingAddress, setSavingAddress] = useState(false)
+  // Cart
+  const items      = useCartStore((s) => s.items)
+  const clearCart  = useCartStore((s) => s.clearCart)
 
-  const [paymentMethod, setPaymentMethod] = useState('razorpay') // 'razorpay' | 'cod'
-  const [placingOrder, setPlacingOrder] = useState(false)
-
-  const { subtotalBeforeTax, totalTaxAmount, totalAmount } = calculateCartTax(items)
+  // Tax
+  const { subtotalBeforeTax, totalTaxAmount, totalAmount: cartTotal } = calculateCartTax(items)
   const taxBreakdown = getTaxBreakdown(items)
+  const safeCartTotal = isNaN(cartTotal)
+    ? items.reduce((s, i) => s + (Number(i.price) || 0) * (Number(i.quantity) || 1), 0)
+    : cartTotal
 
-
-  // const shipping = totalAmount >= 499 || totalAmount === 0 ? 0 : 49
-  // const codFee = paymentMethod === 'cod' ? 20 : 0
-  // const total = totalAmount + shipping + codFee
-
+  // Shipping — live from admin settings
   const { config: shippingConfig, loading: shippingLoading, getShipping } = useShipping()
+  const [paymentMethod, setPaymentMethod] = useState('razorpay')
 
-  // Replace the hardcoded shipping/codFee lines with:
-  const cartTotal = useCartStore((s) => s.getTotal())
-  const { shippingCharge, codCharge, total, shippingFree } = getShipping(
-    cartTotal,
+  const { shippingCharge, shippingFree, codCharge } = getShipping(
+    safeCartTotal,
     paymentMethod,
     items
   )
+  const total = safeCartTotal + shippingCharge + codCharge
 
+  // Step
+  const [step, setStep] = useState(1)
 
-  // ── Guards ──────────────────────────────────────────────────────────────
+  // Address state
+  const [addresses,        setAddresses]        = useState([])
+  const [loadingAddresses, setLoadingAddresses] = useState(true)
+  const [selectedAddressId, setSelectedAddressId] = useState(null)
+  const [showAddForm,      setShowAddForm]      = useState(false)
+  const [addressForm,      setAddressForm]      = useState(EMPTY_ADDRESS)
+  const [savingAddress,    setSavingAddress]    = useState(false)
+
+  // Order state
+  const [placingOrder, setPlacingOrder] = useState(false)
+
+  // ── Guards ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login?redirect=/checkout')
@@ -95,24 +100,20 @@ export default function CheckoutPage() {
     }
   }, [items, authLoading, router])
 
-  // ── Load addresses ──────────────────────────────────────────────────────
+  // ── Load saved addresses ───────────────────────────────────────────────
   useEffect(() => {
-    async function load() {
-      if (!user) return
-      setLoadingAddresses(true)
-      try {
-        const result = await getAddresses(user.uid)
-        setAddresses(result)
-        const defaultAddr = result.find((a) => a.isDefault) || result[0]
-        if (defaultAddr) setSelectedAddressId(defaultAddr.id)
-        if (result.length === 0) setShowAddForm(true)
-      } finally {
-        setLoadingAddresses(false)
-      }
-    }
-    load()
+    if (!user) return
+    setLoadingAddresses(true)
+    getAddresses(user.uid).then((result) => {
+      setAddresses(result)
+      const def = result.find((a) => a.isDefault) || result[0]
+      if (def) setSelectedAddressId(def.id)
+      if (result.length === 0) setShowAddForm(true)
+      setLoadingAddresses(false)
+    })
   }, [user])
 
+  // ── Address form ───────────────────────────────────────────────────────
   function handleAddressFormChange(e) {
     const { name, value } = e.target
     setAddressForm((prev) => ({ ...prev, [name]: value }))
@@ -124,8 +125,8 @@ export default function CheckoutPage() {
     if (!fullName || !phone || !line1 || !city || !state || !pincode) {
       return toast.error('Please fill all required fields')
     }
-    if (!/^\d{10}$/.test(phone)) return toast.error('Enter a valid 10-digit phone number')
-    if (!/^\d{6}$/.test(pincode)) return toast.error('Enter a valid 6-digit pincode')
+    if (!/^\d{10}$/.test(phone))   return toast.error('Enter a valid 10-digit phone number')
+    if (!/^\d{6}$/.test(pincode))  return toast.error('Enter a valid 6-digit pincode')
 
     setSavingAddress(true)
     try {
@@ -142,79 +143,62 @@ export default function CheckoutPage() {
     }
   }
 
-  function goToPayment() {
-    if (!selectedAddressId) return toast.error('Please select a delivery address')
-    setStep(2)
-  }
-
-  function goToReview() {
-    setStep(3)
-  }
-
   const selectedAddress = addresses.find((a) => a.id === selectedAddressId)
 
-  async function confirmOrderStock(orderId, items) {
-    try {
-      await fetch('/api/orders/confirm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, items }),
-      })
-    } catch (err) {
-      // Log but don't block the order — stock sync can retry later
-      console.error('Stock decrement failed:', err)
-    }
-  }
-
-  // ── Place order ─────────────────────────────────────────────────────────
+  // ── Place order ────────────────────────────────────────────────────────
   async function handlePlaceOrder() {
-    if (!selectedAddress) return toast.error('No address selected')
+    if (!selectedAddress) return toast.error('Please select a delivery address')
     setPlacingOrder(true)
 
     const orderItems = items.map((i) => ({
       productId: i.productId,
-      name: i.name,
-      price: i.price,
-      image: i.image,
-      quantity: i.quantity,
+      name:      i.name,
+      price:     i.price,
+      image:     i.image,
+      quantity:  i.quantity,
+      taxRate:   i.taxRate  || 0,
+      taxType:   i.taxType  || 'inclusive',
     }))
 
     const baseOrderData = {
-      userId: user.uid,
-      items: orderItems,
-      subtotal: subtotalBeforeTax,
-      totalTax: totalTaxAmount,
+      userId:          user.uid,
+      items:           orderItems,
+      subtotal:        subtotalBeforeTax,
+      totalTax:        totalTaxAmount,
       taxBreakdown,
-      subtotal,
-      shipping: shippingCharge,
-      codFee: codCharge,
+      shipping:        shippingCharge,
+      codFee:          codCharge,
       total,
       paymentMethod,
       shippingAddress: selectedAddress,
-      customerEmail: user.email,
+      customerEmail:   user.email,
     }
 
-
-
     try {
+      // ── COD flow ───────────────────────────────────────────────────────
       if (paymentMethod === 'cod') {
-        // ── Cash on Delivery flow ──────────────────────────────────────
         const orderId = await createOrder(baseOrderData)
-        await confirmOrderStock(orderId, orderItems)
         clearCart()
-
-        // Customer confirmation
-        await triggerEmail('order_confirmed', user.email, {
-          order: { ...baseOrderData, status: 'confirmed' },
-          orderId,
+        // Decrement stock via API route
+        await fetch('/api/orders/confirm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId, items: orderItems }),
         })
 
-        // Admin alert
-        triggerEmail('admin_new_order', process.env.NEXT_PUBLIC_ADMIN_EMAIL, {
-          order: baseOrderData,
-          orderId,
-        })
+        // Send emails (non-blocking)
+        Promise.allSettled([
+          triggerEmail('order_confirmed', user.email, {
+            order: { ...baseOrderData, status: 'confirmed' },
+            orderId,
+          }),
+          triggerEmail('admin_new_order', process.env.NEXT_PUBLIC_ADMIN_EMAIL, {
+            order: baseOrderData,
+            orderId,
+          }),
+        ])
 
+       
         toast.success('Order placed successfully!')
         router.push(`/orders/${orderId}?success=true`)
         return
@@ -228,30 +212,29 @@ export default function CheckoutPage() {
         return
       }
 
-      // 1. Create order in Firestore first (status: pending)
+      // 1. Create order in Firestore (status: pending)
       const orderId = await createOrder(baseOrderData)
 
-      // 2. Create Razorpay order
+      // 2. Create Razorpay order on server
       const rzpOrder = await createRazorpayOrder(total, orderId)
 
-      // 3. Open Razorpay checkout modal
+      // 3. Open Razorpay modal
       let paymentResponse
       try {
         paymentResponse = await openRazorpayCheckout({
-          orderId: rzpOrder.orderId,
-          amount: rzpOrder.amount,
-          currency: rzpOrder.currency,
-          keyId: rzpOrder.keyId,
+          orderId:      rzpOrder.orderId,
+          amount:       rzpOrder.amount,
+          currency:     rzpOrder.currency,
+          keyId:        rzpOrder.keyId,
           customerInfo: {
-            name: selectedAddress.fullName,
+            name:  selectedAddress.fullName,
             email: user.email,
             phone: selectedAddress.phone,
           },
         })
       } catch (err) {
         // User cancelled or payment failed
-        // Only send payment failed email if it wasn't a user cancellation
-        if (!err.message.includes('cancelled')) {
+        if (!err.message?.includes('cancelled')) {
           triggerEmail('payment_failed', user.email, {
             displayName: profile?.displayName || 'there',
             orderId,
@@ -263,7 +246,7 @@ export default function CheckoutPage() {
         return
       }
 
-      // 4. Verify signature on server
+      // 4. Verify signature server-side
       const verification = await verifyRazorpayPayment(paymentResponse)
       if (!verification.verified) {
         toast.error('Payment verification failed. Contact support if money was deducted.')
@@ -271,30 +254,35 @@ export default function CheckoutPage() {
         return
       }
 
-      // 5. Update order with payment confirmation
+      // 5. Mark order as confirmed in Firestore
       await updateOrderPayment(orderId, {
-        razorpayOrderId: paymentResponse.razorpay_order_id,
+        razorpayOrderId:  paymentResponse.razorpay_order_id,
         razorpayPaymentId: paymentResponse.razorpay_payment_id,
       })
 
-      await confirmOrderStock(orderId, orderItems)
-
-
-      // Customer confirmation
-      await triggerEmail('order_confirmed', user.email, {
-        order: { ...baseOrderData, status: 'confirmed' },
-        orderId,
+      // 6. Decrement stock
+      await fetch('/api/orders/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, items: orderItems }),
       })
 
-      // Admin alert
-      triggerEmail('admin_new_order', process.env.NEXT_PUBLIC_ADMIN_EMAIL, {
-        order: baseOrderData,
-        orderId,
-      })
+      // 7. Send emails (non-blocking)
+      Promise.allSettled([
+        triggerEmail('order_confirmed', user.email, {
+          order: { ...baseOrderData, status: 'confirmed' },
+          orderId,
+        }),
+        triggerEmail('admin_new_order', process.env.NEXT_PUBLIC_ADMIN_EMAIL, {
+          order: baseOrderData,
+          orderId,
+        }),
+      ])
 
       clearCart()
       toast.success('Payment successful!')
       router.push(`/orders/${orderId}?success=true`)
+
     } catch (err) {
       console.error('Order placement failed:', err)
       toast.error('Something went wrong. Please try again.')
@@ -308,27 +296,30 @@ export default function CheckoutPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
 
-      {/* Step indicator */}
+      {/* ── Step indicator ──────────────────────────────────────────── */}
       <div className="flex items-center justify-center gap-2 mb-10">
         {STEPS.map((s, idx) => (
           <div key={s.id} className="flex items-center">
             <div className="flex flex-col items-center gap-1.5">
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors ${step === s.id
-                  ? 'bg-indigo-600 border-indigo-600 text-white'
-                  : step > s.id
+                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors ${
+                  step === s.id
+                    ? 'bg-indigo-600 border-indigo-600 text-white'
+                    : step > s.id
                     ? 'bg-green-50 border-green-500 text-green-600'
                     : 'bg-white border-gray-200 text-gray-300'
-                  }`}
+                }`}
               >
-                {step > s.id ? <Check className="w-4 h-4" /> : <s.icon className="w-4 h-4" />}
+                {step > s.id
+                  ? <Check className="w-4 h-4" />
+                  : <s.icon className="w-4 h-4" />}
               </div>
               <span className={`text-xs font-medium ${step === s.id ? 'text-indigo-600' : 'text-gray-400'}`}>
                 {s.label}
               </span>
             </div>
             {idx < STEPS.length - 1 && (
-              <div className={`w-16 sm:w-24 h-0.5 mx-2 ${step > s.id ? 'bg-green-400' : 'bg-gray-200'}`} />
+              <div className={`w-16 sm:w-24 h-0.5 mx-2 mb-4 ${step > s.id ? 'bg-green-400' : 'bg-gray-200'}`} />
             )}
           </div>
         ))}
@@ -336,10 +327,10 @@ export default function CheckoutPage() {
 
       <div className="grid lg:grid-cols-3 gap-8">
 
-        {/* Main content */}
+        {/* ── Main content ─────────────────────────────────────────── */}
         <div className="lg:col-span-2">
 
-          {/* ── Step 1: Address ──────────────────────────────────────────── */}
+          {/* ════ STEP 1: Address ════ */}
           {step === 1 && (
             <div className="bg-white border border-gray-100 rounded-2xl p-6">
               <h2 className="font-bold text-gray-900 mb-5 flex items-center gap-2">
@@ -353,15 +344,17 @@ export default function CheckoutPage() {
                 </div>
               ) : (
                 <>
+                  {/* Saved addresses */}
                   {addresses.length > 0 && (
                     <div className="space-y-3 mb-5">
                       {addresses.map((addr) => (
                         <label
                           key={addr.id}
-                          className={`flex items-start gap-3 border-2 rounded-xl p-4 cursor-pointer transition-colors ${selectedAddressId === addr.id
-                            ? 'border-indigo-500 bg-indigo-50/50'
-                            : 'border-gray-200 hover:border-gray-300'
-                            }`}
+                          className={`flex items-start gap-3 border-2 rounded-xl p-4 cursor-pointer transition-colors ${
+                            selectedAddressId === addr.id
+                              ? 'border-indigo-500 bg-indigo-50/50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
                         >
                           <input
                             type="radio"
@@ -378,15 +371,17 @@ export default function CheckoutPage() {
                               <span className="text-sm font-medium text-gray-900">{addr.fullName}</span>
                             </div>
                             <p className="text-sm text-gray-500">
-                              {addr.line1}{addr.line2 ? `, ${addr.line2}` : ''}, {addr.city}, {addr.state} — {addr.pincode}
+                              {addr.line1}{addr.line2 ? `, ${addr.line2}` : ''},{' '}
+                              {addr.city}, {addr.state} — {addr.pincode}
                             </p>
-                            <p className="text-sm text-gray-400">{addr.phone}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">{addr.phone}</p>
                           </div>
                         </label>
                       ))}
                     </div>
                   )}
 
+                  {/* Add new address toggle */}
                   {!showAddForm ? (
                     <button
                       onClick={() => setShowAddForm(true)}
@@ -395,6 +390,7 @@ export default function CheckoutPage() {
                       <Plus className="w-4 h-4" /> Add new address
                     </button>
                   ) : (
+                    /* New address form */
                     <form onSubmit={handleSaveNewAddress} className="space-y-4 border-t border-gray-100 pt-5">
                       <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -437,7 +433,9 @@ export default function CheckoutPage() {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Address line 2</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                          Address line 2
+                        </label>
                         <input
                           name="line2"
                           value={addressForm.line2}
@@ -511,9 +509,13 @@ export default function CheckoutPage() {
                     </form>
                   )}
 
+                  {/* Continue button */}
                   {addresses.length > 0 && (
                     <button
-                      onClick={goToPayment}
+                      onClick={() => {
+                        if (!selectedAddressId) return toast.error('Please select a delivery address')
+                        setStep(2)
+                      }}
                       className="w-full mt-6 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3.5 rounded-xl transition-colors"
                     >
                       Continue to payment
@@ -524,7 +526,7 @@ export default function CheckoutPage() {
             </div>
           )}
 
-          {/* ── Step 2: Payment method ───────────────────────────────────── */}
+          {/* ════ STEP 2: Payment method ════ */}
           {step === 2 && (
             <div className="bg-white border border-gray-100 rounded-2xl p-6">
               <button
@@ -540,12 +542,13 @@ export default function CheckoutPage() {
               </h2>
 
               <div className="space-y-3 mb-6">
-                {/* Razorpay option */}
+                {/* Razorpay */}
                 <label
-                  className={`flex items-start gap-3 border-2 rounded-xl p-4 cursor-pointer transition-colors ${paymentMethod === 'razorpay'
-                    ? 'border-indigo-500 bg-indigo-50/50'
-                    : 'border-gray-200 hover:border-gray-300'
-                    }`}
+                  className={`flex items-start gap-3 border-2 rounded-xl p-4 cursor-pointer transition-colors ${
+                    paymentMethod === 'razorpay'
+                      ? 'border-indigo-500 bg-indigo-50/50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
                 >
                   <input
                     type="radio"
@@ -557,10 +560,14 @@ export default function CheckoutPage() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <ShieldCheck className="w-4 h-4 text-indigo-600" />
-                      <span className="text-sm font-semibold text-gray-900">Pay online (Razorpay)</span>
+                      <span className="text-sm font-semibold text-gray-900">
+                        Pay online (Razorpay)
+                      </span>
                     </div>
-                    <p className="text-sm text-gray-500">UPI, credit/debit card, net banking, wallets</p>
-                    <div className="flex items-center gap-2 mt-2">
+                    <p className="text-sm text-gray-500">
+                      UPI, credit/debit card, net banking, wallets
+                    </p>
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
                       {['UPI', 'Cards', 'NetBanking', 'Wallets'].map((m) => (
                         <span key={m} className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded">
                           {m}
@@ -570,14 +577,14 @@ export default function CheckoutPage() {
                   </div>
                 </label>
 
-                {/* COD option */}
-
-                {shippingConfig.codEnabled && (
+                {/* COD — hidden if admin disabled it */}
+                {!shippingLoading && shippingConfig.codEnabled && (
                   <label
-                    className={`flex items-start gap-3 border-2 rounded-xl p-4 cursor-pointer transition-colors ${paymentMethod === 'cod'
-                      ? 'border-indigo-500 bg-indigo-50/50'
-                      : 'border-gray-200 hover:border-gray-300'
-                      }`}
+                    className={`flex items-start gap-3 border-2 rounded-xl p-4 cursor-pointer transition-colors ${
+                      paymentMethod === 'cod'
+                        ? 'border-indigo-500 bg-indigo-50/50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
                   >
                     <input
                       type="radio"
@@ -589,24 +596,37 @@ export default function CheckoutPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <Banknote className="w-4 h-4 text-green-600" />
-                        <span className="text-sm font-semibold text-gray-900">Cash on Delivery</span>
+                        <span className="text-sm font-semibold text-gray-900">
+                          Cash on Delivery
+                        </span>
                       </div>
-                      <p className="text-sm text-gray-500">Pay with cash when your order arrives</p>
-                      {/* <p className="text-xs text-orange-600 mt-2">
-                       Handling fee applies for COD orders
-                      </p> */}
-
-                      {codCharge ? <p className="text-xs text-orange-600 mt-2">
-                       {codCharge} Handling fee applies for COD orders
-                      </p> : ""}
+                      <p className="text-sm text-gray-500">
+                        Pay with cash when your order arrives
+                      </p>
+                      {shippingConfig.codFee > 0 && (
+                        <p className="text-xs text-orange-600 mt-1.5">
+                          +{formatPrice(shippingConfig.codFee)} handling fee
+                          {shippingConfig.codFeeWaiverEnabled &&
+                          shippingConfig.codFreeAbove > 0 &&
+                          safeCartTotal >= shippingConfig.codFreeAbove
+                            ? ' — waived for this order ✓'
+                            : shippingConfig.codFeeWaiverEnabled && shippingConfig.codFreeAbove > 0
+                            ? ` (waived above ${formatPrice(shippingConfig.codFreeAbove)})`
+                            : ''}
+                        </p>
+                      )}
+                      {shippingConfig.codFee === 0 && (
+                        <p className="text-xs text-green-600 mt-1.5">
+                          No COD charges — free cash on delivery
+                        </p>
+                      )}
                     </div>
                   </label>
                 )}
-
               </div>
 
               <button
-                onClick={goToReview}
+                onClick={() => setStep(3)}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3.5 rounded-xl transition-colors"
               >
                 Continue to review
@@ -614,7 +634,7 @@ export default function CheckoutPage() {
             </div>
           )}
 
-          {/* ── Step 3: Review & place order ─────────────────────────────── */}
+          {/* ════ STEP 3: Review & confirm ════ */}
           {step === 3 && (
             <div className="bg-white border border-gray-100 rounded-2xl p-6">
               <button
@@ -629,8 +649,8 @@ export default function CheckoutPage() {
               {/* Address summary */}
               <div className="border border-gray-100 rounded-xl p-4 mb-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                    Delivering to
+                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5" /> Delivering to
                   </span>
                   <button
                     onClick={() => setStep(1)}
@@ -641,8 +661,10 @@ export default function CheckoutPage() {
                 </div>
                 <p className="text-sm font-medium text-gray-900">{selectedAddress?.fullName}</p>
                 <p className="text-sm text-gray-500">
-                  {selectedAddress?.line1}, {selectedAddress?.city}, {selectedAddress?.state} — {selectedAddress?.pincode}
+                  {selectedAddress?.line1}, {selectedAddress?.city},{' '}
+                  {selectedAddress?.state} — {selectedAddress?.pincode}
                 </p>
+                <p className="text-xs text-gray-400 mt-0.5">{selectedAddress?.phone}</p>
               </div>
 
               {/* Payment summary */}
@@ -672,13 +694,14 @@ export default function CheckoutPage() {
                 <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide block mb-3">
                   {items.length} item{items.length !== 1 ? 's' : ''}
                 </span>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {items.map((item) => (
                     <div key={item.productId} className="flex justify-between text-sm">
-                      <span className="text-gray-700">
-                        {item.name} <span className="text-gray-400">× {item.quantity}</span>
+                      <span className="text-gray-700 flex-1 mr-4 line-clamp-1">
+                        {item.name}{' '}
+                        <span className="text-gray-400">× {item.quantity}</span>
                       </span>
-                      <span className="font-medium text-gray-900">
+                      <span className="font-medium text-gray-900 flex-shrink-0">
                         {formatPrice(item.price * item.quantity)}
                       </span>
                     </div>
@@ -686,6 +709,7 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
+              {/* Place order button */}
               <button
                 onClick={handlePlaceOrder}
                 disabled={placingOrder}
@@ -706,44 +730,57 @@ export default function CheckoutPage() {
           )}
         </div>
 
-        {/* Order summary sidebar */}
+        {/* ── Order summary sidebar ─────────────────────────────────── */}
         <div className="lg:col-span-1">
           <div className="bg-white border border-gray-100 rounded-2xl p-6 sticky top-24">
             <h2 className="font-bold text-gray-900 mb-5">Order summary</h2>
 
             <div className="space-y-3 mb-5">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">
-                  Items ({items.length})
-                </span>
-                <span className="font-medium text-gray-900">
-                  {formatPrice(subtotalBeforeTax)}
-                </span>
-              </div>
 
-              {/* Per-rate tax lines */}
+              {/* Subtotal before tax */}
+              {totalTaxAmount > 0 ? (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">
+                    Items ({items.length})
+                  </span>
+                  <span className="text-gray-900">{formatPrice(subtotalBeforeTax)}</span>
+                </div>
+              ) : (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">
+                    Items ({items.length})
+                  </span>
+                  <span className="text-gray-900">{formatPrice(safeCartTotal)}</span>
+                </div>
+              )}
+
+              {/* Per-rate GST lines */}
               {taxBreakdown.map((tb) => (
                 <div key={tb.rate} className="flex justify-between text-sm">
-                  <span className="text-gray-500 flex items-center gap-1.5">
-                    GST {tb.rate}%
+                  <span className="text-gray-500 flex items-center gap-1">
+                    <Tag className="w-3 h-3" /> GST {tb.rate}%
                   </span>
-                  <span className="font-medium text-gray-900">
-                    {formatPrice(tb.taxAmount)}
-                  </span>
+                  <span className="text-gray-900">{formatPrice(tb.taxAmount)}</span>
                 </div>
               ))}
 
+              {/* Shipping */}
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500 flex items-center gap-1.5">
                   <Truck className="w-3.5 h-3.5" /> Shipping
                 </span>
                 <span className="font-medium text-gray-900">
-                  {shippingFree
-                    ? <span className="text-green-600">Free</span>
-                    : formatPrice(shippingCharge)}
+                  {shippingLoading ? (
+                    <span className="text-gray-300">—</span>
+                  ) : shippingFree ? (
+                    <span className="text-green-600">Free</span>
+                  ) : (
+                    formatPrice(shippingCharge)
+                  )}
                 </span>
               </div>
 
+              {/* COD fee */}
               {codCharge > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">COD handling fee</span>
@@ -752,23 +789,29 @@ export default function CheckoutPage() {
               )}
             </div>
 
+            {/* Grand total */}
             <div className="flex justify-between items-baseline py-4 border-t border-gray-100">
               <span className="font-semibold text-gray-900">Total</span>
               <span className="text-xl font-bold text-gray-900">{formatPrice(total)}</span>
             </div>
 
+            {/* Tax note */}
             {totalTaxAmount > 0 && (
               <p className="text-xs text-gray-400 mt-2">
                 Incl. {formatPrice(totalTaxAmount)} GST
               </p>
             )}
 
-            <div className="flex items-center gap-2 mt-4 text-xs text-gray-400">
-              <ShieldCheck className="w-4 h-4" />
-              Secure checkout powered by Razorpay
+            {/* Trust badge */}
+            <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-50">
+              <ShieldCheck className="w-4 h-4 text-gray-400" />
+              <p className="text-xs text-gray-400">
+                Secure checkout powered by Razorpay
+              </p>
             </div>
           </div>
         </div>
+
       </div>
     </div>
   )

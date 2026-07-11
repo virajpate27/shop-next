@@ -48,6 +48,8 @@ export function ProductDetailClient({ product, related }) {
       stock: product.stock,
       taxRate: product.taxRate || 0,
       taxType: product.taxType || 'inclusive',
+      category:  product.category || '',
+      slug:      product.slug     || '',
     });
     // addItem increments by 1 each call — loop for quantity
     for (let i = 1; i < quantity; i++) {

@@ -28,6 +28,8 @@ export function ProductCard({ product }) {
       stock: product.stock,
       taxRate: product.taxRate || 0,       
       taxType: product.taxType || 'inclusive', 
+      category:  product.category || '', 
+      slug:      product.slug     || '',
     })
     toast.success(`${product.name} added to cart`)
   }
