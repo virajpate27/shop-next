@@ -20,6 +20,7 @@ import {
 import { formatPrice } from '@/utils/formatters'
 import { triggerEmail } from '@/lib/triggerEmail'
 import { calculateCartTax, getTaxBreakdown } from '@/utils/tax'
+import { useShipping } from '@/hooks/useShipping'
 
 const STEPS = [
   { id: 1, label: 'Address', icon: MapPin },
@@ -66,11 +67,19 @@ export default function CheckoutPage() {
   const taxBreakdown = getTaxBreakdown(items)
 
 
-  const shipping = totalAmount >= 499 || totalAmount === 0 ? 0 : 49
-  const codFee = paymentMethod === 'cod' ? 20 : 0
-  const total = totalAmount + shipping + codFee
+  // const shipping = totalAmount >= 499 || totalAmount === 0 ? 0 : 49
+  // const codFee = paymentMethod === 'cod' ? 20 : 0
+  // const total = totalAmount + shipping + codFee
 
+  const { config: shippingConfig, loading: shippingLoading, getShipping } = useShipping()
 
+  // Replace the hardcoded shipping/codFee lines with:
+  const cartTotal = useCartStore((s) => s.getTotal())
+  const { shippingCharge, codCharge, total, shippingFree } = getShipping(
+    cartTotal,
+    paymentMethod,
+    items
+  )
 
 
   // ── Guards ──────────────────────────────────────────────────────────────
@@ -177,13 +186,15 @@ export default function CheckoutPage() {
       totalTax: totalTaxAmount,
       taxBreakdown,
       subtotal,
-      shipping,
-      codFee,
+      shipping: shippingCharge,
+      codFee: codCharge,
       total,
       paymentMethod,
       shippingAddress: selectedAddress,
       customerEmail: user.email,
     }
+
+
 
     try {
       if (paymentMethod === 'cod') {
@@ -266,7 +277,7 @@ export default function CheckoutPage() {
         razorpayPaymentId: paymentResponse.razorpay_payment_id,
       })
 
-      await confirmOrderStock(orderId, orderItems) 
+      await confirmOrderStock(orderId, orderItems)
 
 
       // Customer confirmation
@@ -560,30 +571,38 @@ export default function CheckoutPage() {
                 </label>
 
                 {/* COD option */}
-                <label
-                  className={`flex items-start gap-3 border-2 rounded-xl p-4 cursor-pointer transition-colors ${paymentMethod === 'cod'
-                    ? 'border-indigo-500 bg-indigo-50/50'
-                    : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                >
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    checked={paymentMethod === 'cod'}
-                    onChange={() => setPaymentMethod('cod')}
-                    className="mt-1 accent-indigo-600"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Banknote className="w-4 h-4 text-green-600" />
-                      <span className="text-sm font-semibold text-gray-900">Cash on Delivery</span>
+
+                {shippingConfig.codEnabled && (
+                  <label
+                    className={`flex items-start gap-3 border-2 rounded-xl p-4 cursor-pointer transition-colors ${paymentMethod === 'cod'
+                      ? 'border-indigo-500 bg-indigo-50/50'
+                      : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      checked={paymentMethod === 'cod'}
+                      onChange={() => setPaymentMethod('cod')}
+                      className="mt-1 accent-indigo-600"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Banknote className="w-4 h-4 text-green-600" />
+                        <span className="text-sm font-semibold text-gray-900">Cash on Delivery</span>
+                      </div>
+                      <p className="text-sm text-gray-500">Pay with cash when your order arrives</p>
+                      {/* <p className="text-xs text-orange-600 mt-2">
+                       Handling fee applies for COD orders
+                      </p> */}
+
+                      {codCharge ? <p className="text-xs text-orange-600 mt-2">
+                       {codCharge} Handling fee applies for COD orders
+                      </p> : ""}
                     </div>
-                    <p className="text-sm text-gray-500">Pay with cash when your order arrives</p>
-                    <p className="text-xs text-orange-600 mt-2">
-                      ₹20 handling fee applies for COD orders
-                    </p>
-                  </div>
-                </label>
+                  </label>
+                )}
+
               </div>
 
               <button
@@ -719,16 +738,16 @@ export default function CheckoutPage() {
                   <Truck className="w-3.5 h-3.5" /> Shipping
                 </span>
                 <span className="font-medium text-gray-900">
-                  {shipping === 0
+                  {shippingFree
                     ? <span className="text-green-600">Free</span>
-                    : formatPrice(shipping)}
+                    : formatPrice(shippingCharge)}
                 </span>
               </div>
 
-              {codFee > 0 && (
+              {codCharge > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">COD handling fee</span>
-                  <span className="font-medium text-gray-900">{formatPrice(codFee)}</span>
+                  <span className="font-medium text-gray-900">{formatPrice(codCharge)}</span>
                 </div>
               )}
             </div>

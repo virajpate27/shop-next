@@ -7,17 +7,24 @@ import { useCartStore } from '@/store/cartStore'
 import { formatPrice } from '@/utils/formatters'
 import { getOptimizedUrl } from '@/lib/cloudinary'
 import { calculateTax, calculateCartTax, getTaxBreakdown } from '@/utils/tax'
+import { useShipping } from '@/hooks/useShipping'
 
 
 export default function CartPage() {
-  
-  
+
+
   const items = useCartStore((s) => s.items)
   const clearCart = useCartStore((s) => s.clearCart)
   const updateQuantity = useCartStore((s) => s.updateQuantity)
   const removeItem = useCartStore((s) => s.removeItem)
 
-
+  const { getShipping, config: shippingConfig } = useShipping()
+  const cartTotal = useCartStore((s) => s.getTotal())
+  const { shippingCharge, shippingFree, total: grandTotal } = getShipping(
+    cartTotal,
+    'razorpay', // cart doesn't know payment method yet — use base (non-COD)
+    items
+  )
 
   const { subtotalBeforeTax, totalTaxAmount, totalAmount } = calculateCartTax(items)
   const taxBreakdown = getTaxBreakdown(items)
@@ -27,7 +34,7 @@ export default function CartPage() {
     : totalAmount
 
   const shipping = safeTotal >= 499 || safeTotal === 0 ? 0 : 49
-  const grandTotal = safeTotal + shipping
+  
 
 
 
@@ -157,16 +164,16 @@ export default function CartPage() {
 
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Shipping</span>
-              <span className="font-medium">
-                {shipping === 0
+              <span className="font-medium text-gray-900">
+                {shippingFree
                   ? <span className="text-green-600">Free</span>
-                  : formatPrice(shipping)}
+                  : formatPrice(shippingCharge)}
               </span>
             </div>
 
-            {shipping > 0 && totalAmount < 499 && (
+            {!shippingFree && shippingConfig.freeAbove > 0 && cartTotal < shippingConfig.freeAbove && (
               <p className="text-xs text-indigo-600 bg-indigo-50 px-3 py-2 rounded-lg">
-                Add {formatPrice(499 - totalAmount)} more for free shipping
+                Add {formatPrice(shippingConfig.freeAbove - cartTotal)} more for free shipping
               </p>
             )}
           </div>

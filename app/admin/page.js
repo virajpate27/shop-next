@@ -6,7 +6,7 @@ import { db } from '@/lib/firebase/config'
 import { Receipt } from 'lucide-react'
 import {
   Package, ShoppingBag, Users, TrendingUp, IndianRupee,
-  AlertTriangle, ArrowUpRight, ArrowDownRight,
+  AlertTriangle, ArrowUpRight, ArrowDownRight, Truck ,
 } from 'lucide-react'
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis,
@@ -14,6 +14,7 @@ import {
 } from 'recharts'
 import { formatPrice, formatDate } from '@/utils/formatters'
 import { toast } from 'sonner'
+import { useShipping } from '@/hooks/useShipping'
 
 const STATUS_STYLES = {
   pending: 'bg-yellow-50 text-yellow-700',
@@ -40,6 +41,7 @@ export default function AdminDashboard() {
   const [categoryChart, setCategoryChart] = useState([])
   const [lowStockProducts, setLowStockProducts] = useState([])
   const [loading, setLoading] = useState(true)
+  const { config: shippingConfig } = useShipping()
 
   useEffect(() => {
     // Real-time orders listener — dashboard updates live as orders come in
@@ -181,7 +183,7 @@ export default function AdminDashboard() {
     },
   ]
 
-  
+
 
   return (
     <div className="p-6">
@@ -357,6 +359,29 @@ export default function AdminDashboard() {
               ))}
             </div>
           )}
+        </div>
+
+        {/* Add a shipping summary card alongside stat cards: */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
+              <Truck className="w-5 h-5" />
+            </div>
+            <a href="/admin/shipping" className="text-xs text-indigo-600 font-medium hover:underline">
+              Edit
+            </a>
+          </div>
+          <p className="text-sm font-semibold text-gray-900">
+            {shippingConfig.freeShippingEnabled && shippingConfig.freeAbove > 0
+              ? `Free above ₹${shippingConfig.freeAbove}`
+              : `₹${shippingConfig.baseCharge} flat`}
+          </p>
+          <p className="text-sm text-gray-400 mt-0.5">Shipping</p>
+          <p className="text-xs text-gray-400 mt-2">
+            COD: {shippingConfig.codEnabled
+              ? shippingConfig.codFee > 0 ? `+₹${shippingConfig.codFee} fee` : 'Free'
+              : 'Disabled'}
+          </p>
         </div>
       </div>
     </div>

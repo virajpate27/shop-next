@@ -6,12 +6,18 @@ import { X, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react'
 import { useCartStore } from '@/store/cartStore'
 import { formatPrice } from '@/utils/formatters'
 import { getOptimizedUrl } from '@/lib/cloudinary'
+import { useShipping } from '@/hooks/useShipping'
 
 export function CartDrawer({ open, onClose }) {
-  const items = useCartStore((s) => s.items)
+
   const updateQuantity = useCartStore((s) => s.updateQuantity)
   const removeItem = useCartStore((s) => s.removeItem)
-  const total = useCartStore((s) => s.getTotal())
+
+
+  const { getShipping, config: shippingConfig } = useShipping()
+  const items = useCartStore((s) => s.items)
+  const cartTotal = useCartStore((s) => s.getTotal())
+  const { shippingCharge, shippingFree } = getShipping(cartTotal, 'razorpay', items)
 
   if (!open) return null
 
@@ -108,10 +114,23 @@ export function CartDrawer({ open, onClose }) {
         {/* Footer */}
         {items.length > 0 && (
           <div className="p-5 border-t border-gray-100">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-gray-500">Subtotal</span>
-              <span className="text-lg font-bold text-gray-900">{formatPrice(total)}</span>
+              <span className="font-bold text-gray-900">{formatPrice(cartTotal)}</span>
             </div>
+
+            {shippingCharge > 0 && (
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm text-gray-500">Shipping</span>
+                <span className="text-sm text-gray-900">{formatPrice(shippingCharge)}</span>
+              </div>
+            )}
+
+            {!shippingFree && shippingConfig.freeAbove > 0 && (
+              <p className="text-xs text-indigo-600 mb-3">
+                {formatPrice(shippingConfig.freeAbove - cartTotal)} away from free shipping
+              </p>
+            )}
             <p className="text-xs text-gray-400 mb-4">Shipping and taxes calculated at checkout</p>
             <Link
               href="/checkout"
