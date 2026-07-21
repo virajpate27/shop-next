@@ -15,6 +15,7 @@ import { uploadImages } from '@/lib/cloudinary';
 import { formatPrice, generateSlug } from '@/utils/formatters';
 import { useCategories } from '@/hooks/useCategories'
 import { TaxPreview } from '@/components/admin/TaxPreview'
+import { VariationBuilder } from '@/components/admin/VariationBuilder'
 
 const EMPTY_FORM = {
   name: '',
@@ -31,6 +32,9 @@ const EMPTY_FORM = {
   taxRate: 0,
   taxType: 'inclusive',
   customTaxRate: '',
+  hasVariations: false,
+  variationTypes: [],
+  variants: [],
 };
 
 
@@ -48,6 +52,9 @@ export default function AdminProductsPage() {
   const [previewUrls, setPreviewUrls] = useState([]);
   const fileInputRef = useRef(null);
   const { categories } = useCategories()
+
+  const [variationTypes, setVariationTypes] = useState([])
+  const [variants, setVariants] = useState([])
 
   useEffect(() => {
     fetchProducts();
@@ -69,11 +76,13 @@ export default function AdminProductsPage() {
     setEditing(null);
     setForm(EMPTY_FORM);
     setPreviewUrls([]);
+    setVariationTypes([])
+    setVariants([])
     setShowModal(true);
   }
 
   function openEdit(product) {
-    setEditing(product.id);
+    setEditing(product.id)
     setForm({
       name: product.name || '',
       slug: product.slug || '',
@@ -89,9 +98,14 @@ export default function AdminProductsPage() {
       taxRate: product.taxRate ?? 0,
       taxType: product.taxType || 'inclusive',
       customTaxRate: product.customTaxRate || '',
-    });
-    setPreviewUrls(product.images || []);
-    setShowModal(true);
+      hasVariations: product.hasVariations || false,
+      variationTypes: product.variationTypes || [],
+      variants: product.variants || [],
+    })
+    setPreviewUrls(product.images || [])
+    setVariationTypes(product.variationTypes || [])
+    setVariants(product.variants || [])
+    setShowModal(true)
   }
 
   function closeModal() {
@@ -164,7 +178,16 @@ export default function AdminProductsPage() {
             .map((t) => t.trim())
             .filter(Boolean)
           : [],
-        stock: Number(form.stock),
+        hasVariations: form.hasVariations,
+        variationTypes: form.hasVariations ? variationTypes : [],
+        variants: form.hasVariations ? variants.map((v) => ({
+          ...v,
+          price: Number(v.price) || Number(form.price) || 0,
+          stock: Number(v.stock) || 0,
+        })) : [],
+        stock: form.hasVariations
+          ? variants.reduce((sum, v) => sum + (Number(v.stock) || 0), 0)
+          : Number(form.stock),
         sku: form.sku.trim(),
         featured: form.featured,
         images: form.images,
@@ -517,6 +540,40 @@ export default function AdminProductsPage() {
                   />
                 </div>
               </div>
+
+              {/* Has variations toggle */}
+              <label className="flex items-center gap-3 cursor-pointer pt-2">
+                <input
+                  type="checkbox"
+                  checked={form.hasVariations}
+                  onChange={(e) => {
+                    setForm((prev) => ({ ...prev, hasVariations: e.target.checked }))
+                    if (!e.target.checked) {
+                      setVariationTypes([])
+                      setVariants([])
+                    }
+                  }}
+                  className="w-4 h-4 rounded accent-indigo-600"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  This product has variations (size, color, etc.)
+                </span>
+              </label>
+
+              {/* Variation builder */}
+              {form.hasVariations && (
+                <div className="border-t border-gray-100 pt-5">
+                  <p className="text-sm font-medium text-gray-700 mb-4">Product variations</p>
+                  <VariationBuilder
+                    variationTypes={variationTypes}
+                    setVariationTypes={setVariationTypes}
+                    variants={variants}
+                    setVariants={setVariants}
+                    basePrice={form.price}
+                  />
+                </div>
+              )}
+
 
               {/* Tax */}
               <div className="border-t border-gray-100 pt-5">

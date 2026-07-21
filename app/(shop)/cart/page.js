@@ -8,12 +8,20 @@ import { useShipping } from '@/hooks/useShipping'
 import { calculateCartTax, getTaxBreakdown } from '@/utils/tax'
 import { formatPrice } from '@/utils/formatters'
 import { getOptimizedUrl } from '@/lib/cloudinary'
+import { useCoupon } from '@/hooks/useCoupon'
+import { CouponInput } from '@/components/cart/CouponInput'
 
 export default function CartPage() {
-  const items        = useCartStore((s) => s.items)
+  const items = useCartStore((s) => s.items)
+  const removeItem = useCartStore((s) => s.removeItem)
   const updateQuantity = useCartStore((s) => s.updateQuantity)
-  const removeItem   = useCartStore((s) => s.removeItem)
-  const clearCart    = useCartStore((s) => s.clearCart)
+  const clearCart = useCartStore((s) => s.clearCart)
+  const {
+    code, setCode, coupon, discount,
+    loading: couponLoading, error: couponError,
+    apply: applyCoupon, remove: removeCoupon,
+    isFreeShipping,
+  } = useCoupon()
 
   // ── Tax ─────────────────────────────────────────────────────────────────
   const { subtotalBeforeTax, totalTaxAmount, totalAmount } = calculateCartTax(items)
@@ -28,7 +36,11 @@ export default function CartPage() {
   const { getShipping, config: shippingConfig, loading: shippingLoading } = useShipping()
   const { shippingCharge, shippingFree } = getShipping(safeCartTotal, 'razorpay', items)
 
-  const grandTotal = safeCartTotal + shippingCharge
+  const effectiveShippingFree = shippingFree || isFreeShipping
+  const effectiveShipping = effectiveShippingFree ? 0 : shippingCharge
+
+  const grandTotal = Math.max(0, safeCartTotal - discount + effectiveShipping)
+
 
   // ── Empty state ──────────────────────────────────────────────────────────
   if (items.length === 0) {
@@ -98,10 +110,12 @@ export default function CartPage() {
                 {/* Info */}
                 <div className="flex-1 min-w-0 flex flex-col justify-between">
                   <div>
-                    <h3 className="font-medium text-gray-900 line-clamp-1 mb-0.5">
-                      {item.name}
-                    </h3>
+                    <h3 className="font-medium text-gray-900 line-clamp-1 mb-0.5">{item.name}</h3>
+                    {item.variantLabel && (
+                      <p className="text-xs text-indigo-600 font-medium mb-0.5">{item.variantLabel}</p>
+                    )}
                     <p className="text-sm text-gray-400">{formatPrice(item.price)} each</p>
+
 
                     {/* Tax badge */}
                     {item.taxRate > 0 && (
@@ -118,7 +132,7 @@ export default function CartPage() {
                     {/* Quantity controls */}
                     <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden">
                       <button
-                        onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                        onClick={() => updateQuantity(item.productId, item.quantity - 1, item.variantId)}
                         className="p-2 hover:bg-gray-50 transition-colors"
                         aria-label="Decrease quantity"
                       >
@@ -128,7 +142,7 @@ export default function CartPage() {
                         {item.quantity}
                       </span>
                       <button
-                        onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                        onClick={() => updateQuantity(item.productId, item.quantity + 1, item.variantId)}
                         disabled={item.quantity >= item.stock}
                         className="p-2 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                         aria-label="Increase quantity"
@@ -142,7 +156,7 @@ export default function CartPage() {
                         {formatPrice(lineTotal)}
                       </span>
                       <button
-                        onClick={() => removeItem(item.productId)}
+                        onClick={() => removeItem(item.productId, item.variantId)}
                         className="p-2 text-gray-400 hover:text-red-500 transition-colors"
                         aria-label="Remove item"
                       >
@@ -161,7 +175,32 @@ export default function CartPage() {
           <div className="bg-white border border-gray-100 rounded-2xl p-6 sticky top-24">
             <h2 className="font-bold text-gray-900 mb-5">Order summary</h2>
 
+            <CouponInput
+              code={code}
+              setCode={setCode}
+              coupon={coupon}
+              discount={discount}
+              loading={couponLoading}
+              error={couponError}
+              onApply={applyCoupon}
+              onRemove={removeCoupon}
+              cartTotal={safeCartTotal}
+              isFreeShipping={isFreeShipping}
+            />
+
             <div className="space-y-3 mb-5">
+
+
+
+              {coupon && discount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-green-600 flex items-center gap-1">
+                    <Tag className="w-3 h-3" />
+                    Coupon ({coupon.code})
+                  </span>
+                  <span className="text-green-600 font-semibold">−{formatPrice(discount)}</span>
+                </div>
+              )}
 
               {/* Base subtotal (show only when tax is present) */}
               {totalTaxAmount > 0 && (

@@ -20,12 +20,15 @@ import {
 } from '@/lib/razorpay'
 import { triggerEmail } from '@/lib/triggerEmail'
 import { formatPrice } from '@/utils/formatters'
+import { useCoupon } from '@/hooks/useCoupon'
+import { CouponInput } from '@/components/cart/CouponInput'
+import { incrementCouponUsage } from '@/lib/firebase/coupons'
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const STEPS = [
   { id: 1, label: 'Address', icon: MapPin },
   { id: 2, label: 'Payment', icon: CreditCard },
-  { id: 3, label: 'Review',  icon: Check },
+  { id: 3, label: 'Review', icon: Check },
 ]
 
 const EMPTY_ADDRESS = {
@@ -52,8 +55,8 @@ export default function CheckoutPage() {
   const router = useRouter()
 
   // Cart
-  const items      = useCartStore((s) => s.items)
-  const clearCart  = useCartStore((s) => s.clearCart)
+  const items = useCartStore((s) => s.items)
+  const clearCart = useCartStore((s) => s.clearCart)
 
   // Tax
   const { subtotalBeforeTax, totalTaxAmount, totalAmount: cartTotal } = calculateCartTax(items)
@@ -64,6 +67,13 @@ export default function CheckoutPage() {
 
   // Shipping — live from admin settings
   const { config: shippingConfig, loading: shippingLoading, getShipping } = useShipping()
+  const {
+    code: couponCode, setCode: setCouponCode,
+    coupon, discount,
+    loading: couponLoading, error: couponError,
+    apply: applyCoupon, remove: removeCoupon,
+    isFreeShipping: couponFreeShipping,
+  } = useCoupon()
   const [paymentMethod, setPaymentMethod] = useState('razorpay')
 
   const { shippingCharge, shippingFree, codCharge } = getShipping(
@@ -71,18 +81,23 @@ export default function CheckoutPage() {
     paymentMethod,
     items
   )
-  const total = safeCartTotal + shippingCharge + codCharge
+
+  const effectiveShippingFree = shippingFree || couponFreeShipping
+  const effectiveShipping = effectiveShippingFree ? 0 : shippingCharge
+
+  const total = Math.max(0, safeCartTotal - discount + effectiveShipping + codCharge)
+
 
   // Step
   const [step, setStep] = useState(1)
 
   // Address state
-  const [addresses,        setAddresses]        = useState([])
+  const [addresses, setAddresses] = useState([])
   const [loadingAddresses, setLoadingAddresses] = useState(true)
   const [selectedAddressId, setSelectedAddressId] = useState(null)
-  const [showAddForm,      setShowAddForm]      = useState(false)
-  const [addressForm,      setAddressForm]      = useState(EMPTY_ADDRESS)
-  const [savingAddress,    setSavingAddress]    = useState(false)
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [addressForm, setAddressForm] = useState(EMPTY_ADDRESS)
+  const [savingAddress, setSavingAddress] = useState(false)
 
   // Order state
   const [placingOrder, setPlacingOrder] = useState(false)
@@ -125,8 +140,8 @@ export default function CheckoutPage() {
     if (!fullName || !phone || !line1 || !city || !state || !pincode) {
       return toast.error('Please fill all required fields')
     }
-    if (!/^\d{10}$/.test(phone))   return toast.error('Enter a valid 10-digit phone number')
-    if (!/^\d{6}$/.test(pincode))  return toast.error('Enter a valid 6-digit pincode')
+    if (!/^\d{10}$/.test(phone)) return toast.error('Enter a valid 10-digit phone number')
+    if (!/^\d{6}$/.test(pincode)) return toast.error('Enter a valid 6-digit pincode')
 
     setSavingAddress(true)
     try {
@@ -152,26 +167,29 @@ export default function CheckoutPage() {
 
     const orderItems = items.map((i) => ({
       productId: i.productId,
-      name:      i.name,
-      price:     i.price,
-      image:     i.image,
-      quantity:  i.quantity,
-      taxRate:   i.taxRate  || 0,
-      taxType:   i.taxType  || 'inclusive',
+      name: i.name,
+      price: i.price,
+      image: i.image,
+      quantity: i.quantity,
+      taxRate: i.taxRate || 0,
+      taxType: i.taxType || 'inclusive',
     }))
 
     const baseOrderData = {
-      userId:          user.uid,
-      items:           orderItems,
-      subtotal:        subtotalBeforeTax,
-      totalTax:        totalTaxAmount,
+      userId: user.uid,
+      items: orderItems,
+      subtotal: subtotalBeforeTax,
+      totalTax: totalTaxAmount,
       taxBreakdown,
-      shipping:        shippingCharge,
-      codFee:          codCharge,
+      shipping: shippingCharge,
+      codFee: codCharge,
+      discount,
+      couponCode: coupon?.code || null,
+      couponId: coupon?.id || null,
       total,
       paymentMethod,
       shippingAddress: selectedAddress,
-      customerEmail:   user.email,
+      customerEmail: user.email,
     }
 
     try {
@@ -198,8 +216,15 @@ export default function CheckoutPage() {
           }),
         ])
 
-       
+
         toast.success('Order placed successfully!')
+        if (coupon?.id) {
+          fetch('/api/coupons/use', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ couponId: coupon.id }),
+          }).catch(console.error)
+        }
         router.push(`/orders/${orderId}?success=true`)
         return
       }
@@ -222,12 +247,12 @@ export default function CheckoutPage() {
       let paymentResponse
       try {
         paymentResponse = await openRazorpayCheckout({
-          orderId:      rzpOrder.orderId,
-          amount:       rzpOrder.amount,
-          currency:     rzpOrder.currency,
-          keyId:        rzpOrder.keyId,
+          orderId: rzpOrder.orderId,
+          amount: rzpOrder.amount,
+          currency: rzpOrder.currency,
+          keyId: rzpOrder.keyId,
           customerInfo: {
-            name:  selectedAddress.fullName,
+            name: selectedAddress.fullName,
             email: user.email,
             phone: selectedAddress.phone,
           },
@@ -256,7 +281,7 @@ export default function CheckoutPage() {
 
       // 5. Mark order as confirmed in Firestore
       await updateOrderPayment(orderId, {
-        razorpayOrderId:  paymentResponse.razorpay_order_id,
+        razorpayOrderId: paymentResponse.razorpay_order_id,
         razorpayPaymentId: paymentResponse.razorpay_payment_id,
       })
 
@@ -281,6 +306,13 @@ export default function CheckoutPage() {
 
       clearCart()
       toast.success('Payment successful!')
+      if (coupon?.id) {
+        fetch('/api/coupons/use', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ couponId: coupon.id }),
+        }).catch(console.error)
+      }
       router.push(`/orders/${orderId}?success=true`)
 
     } catch (err) {
@@ -302,13 +334,12 @@ export default function CheckoutPage() {
           <div key={s.id} className="flex items-center">
             <div className="flex flex-col items-center gap-1.5">
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors ${
-                  step === s.id
-                    ? 'bg-indigo-600 border-indigo-600 text-white'
-                    : step > s.id
+                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors ${step === s.id
+                  ? 'bg-indigo-600 border-indigo-600 text-white'
+                  : step > s.id
                     ? 'bg-green-50 border-green-500 text-green-600'
                     : 'bg-white border-gray-200 text-gray-300'
-                }`}
+                  }`}
               >
                 {step > s.id
                   ? <Check className="w-4 h-4" />
@@ -350,11 +381,10 @@ export default function CheckoutPage() {
                       {addresses.map((addr) => (
                         <label
                           key={addr.id}
-                          className={`flex items-start gap-3 border-2 rounded-xl p-4 cursor-pointer transition-colors ${
-                            selectedAddressId === addr.id
-                              ? 'border-indigo-500 bg-indigo-50/50'
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
+                          className={`flex items-start gap-3 border-2 rounded-xl p-4 cursor-pointer transition-colors ${selectedAddressId === addr.id
+                            ? 'border-indigo-500 bg-indigo-50/50'
+                            : 'border-gray-200 hover:border-gray-300'
+                            }`}
                         >
                           <input
                             type="radio"
@@ -544,11 +574,10 @@ export default function CheckoutPage() {
               <div className="space-y-3 mb-6">
                 {/* Razorpay */}
                 <label
-                  className={`flex items-start gap-3 border-2 rounded-xl p-4 cursor-pointer transition-colors ${
-                    paymentMethod === 'razorpay'
-                      ? 'border-indigo-500 bg-indigo-50/50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                  className={`flex items-start gap-3 border-2 rounded-xl p-4 cursor-pointer transition-colors ${paymentMethod === 'razorpay'
+                    ? 'border-indigo-500 bg-indigo-50/50'
+                    : 'border-gray-200 hover:border-gray-300'
+                    }`}
                 >
                   <input
                     type="radio"
@@ -580,11 +609,10 @@ export default function CheckoutPage() {
                 {/* COD — hidden if admin disabled it */}
                 {!shippingLoading && shippingConfig.codEnabled && (
                   <label
-                    className={`flex items-start gap-3 border-2 rounded-xl p-4 cursor-pointer transition-colors ${
-                      paymentMethod === 'cod'
-                        ? 'border-indigo-500 bg-indigo-50/50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
+                    className={`flex items-start gap-3 border-2 rounded-xl p-4 cursor-pointer transition-colors ${paymentMethod === 'cod'
+                      ? 'border-indigo-500 bg-indigo-50/50'
+                      : 'border-gray-200 hover:border-gray-300'
+                      }`}
                   >
                     <input
                       type="radio"
@@ -607,12 +635,12 @@ export default function CheckoutPage() {
                         <p className="text-xs text-orange-600 mt-1.5">
                           +{formatPrice(shippingConfig.codFee)} handling fee
                           {shippingConfig.codFeeWaiverEnabled &&
-                          shippingConfig.codFreeAbove > 0 &&
-                          safeCartTotal >= shippingConfig.codFreeAbove
+                            shippingConfig.codFreeAbove > 0 &&
+                            safeCartTotal >= shippingConfig.codFreeAbove
                             ? ' — waived for this order ✓'
                             : shippingConfig.codFeeWaiverEnabled && shippingConfig.codFreeAbove > 0
-                            ? ` (waived above ${formatPrice(shippingConfig.codFreeAbove)})`
-                            : ''}
+                              ? ` (waived above ${formatPrice(shippingConfig.codFreeAbove)})`
+                              : ''}
                         </p>
                       )}
                       {shippingConfig.codFee === 0 && (
@@ -709,6 +737,22 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
+
+              <div className="mb-5">
+                <CouponInput
+                  code={couponCode}
+                  setCode={setCouponCode}
+                  coupon={coupon}
+                  discount={discount}
+                  loading={couponLoading}
+                  error={couponError}
+                  onApply={applyCoupon}
+                  onRemove={removeCoupon}
+                  cartTotal={safeCartTotal}
+                  isFreeShipping={couponFreeShipping}
+                />
+              </div>
+
               {/* Place order button */}
               <button
                 onClick={handlePlaceOrder}
@@ -764,19 +808,26 @@ export default function CheckoutPage() {
                 </div>
               ))}
 
+              {/* coupon lines */}
+              {coupon && discount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-green-600 flex items-center gap-1.5">
+                    <Tag className="w-3 h-3" />
+                    {coupon.code}
+                  </span>
+                  <span className="text-green-600 font-semibold">−{formatPrice(discount)}</span>
+                </div>
+              )}
+
               {/* Shipping */}
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500 flex items-center gap-1.5">
                   <Truck className="w-3.5 h-3.5" /> Shipping
                 </span>
                 <span className="font-medium text-gray-900">
-                  {shippingLoading ? (
-                    <span className="text-gray-300">—</span>
-                  ) : shippingFree ? (
-                    <span className="text-green-600">Free</span>
-                  ) : (
-                    formatPrice(shippingCharge)
-                  )}
+                  {effectiveShippingFree
+                    ? <span className="text-green-600">Free</span>
+                    : formatPrice(effectiveShipping)}
                 </span>
               </div>
 

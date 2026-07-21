@@ -110,6 +110,16 @@ function OrderSummaryBox(order) {
         <span style="color: #6b7280; font-size: 14px;">Subtotal</span>
         <span style="font-size: 14px;">${formatPrice(order.subtotal)}</span>
       </div>
+      ${order.couponCode ? `
+  <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+    <span style="color: #6b7280; font-size: 14px;">
+      Coupon (${order.couponCode})
+    </span>
+    <span style="font-size: 14px; color: #059669; font-weight: 600;">
+      −${formatPrice(order.discount)}
+    </span>
+  </div>
+` : ''}
       <div style="display: flex; justify-content: space-between;
                   margin-bottom: 8px;">
         <span style="color: #6b7280; font-size: 14px;">Shipping</span>
@@ -189,8 +199,8 @@ export function orderConfirmedEmail({ order, orderId }) {
               <h2 style="${styles.h2}">Your order is confirmed! ✅</h2>
               <p style="${styles.p}">
                 ${isRazorpay
-                  ? 'Payment received successfully. We\'re preparing your order now.'
-                  : 'Your Cash on Delivery order has been placed. Please keep the exact amount ready at delivery.'}
+        ? 'Payment received successfully. We\'re preparing your order now.'
+        : 'Your Cash on Delivery order has been placed. Please keep the exact amount ready at delivery.'}
               </p>
 
               <div style="background: #eef2ff; border-radius: 10px;

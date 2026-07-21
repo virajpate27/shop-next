@@ -10,8 +10,8 @@ import { useShipping } from '@/hooks/useShipping'
 
 export function CartDrawer({ open, onClose }) {
 
-  const updateQuantity = useCartStore((s) => s.updateQuantity)
-  const removeItem = useCartStore((s) => s.removeItem)
+  const removeItem    = useCartStore((s) => s.removeItem)
+const updateQuantity = useCartStore((s) => s.updateQuantity)
 
 
   const { getShipping, config: shippingConfig } = useShipping()
@@ -75,34 +75,43 @@ export function CartDrawer({ open, onClose }) {
 
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 line-clamp-1">{item.name}</p>
+                    
+                    {item.variantLabel && (
+                      <p className="text-xs text-indigo-600 font-medium mt-0.5">{item.variantLabel}</p>
+                    )}
                     <p className="text-sm text-gray-500 mb-2">{formatPrice(item.price)}</p>
+                  
 
                     <div className="flex items-center justify-between">
                       <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
-                        <button
-                          onClick={() => updateQuantity(item.productId, item.quantity - 1)}
-                          className="p-1.5 hover:bg-gray-50 transition-colors"
-                        >
-                          <Minus className="w-3 h-3 text-gray-600" />
-                        </button>
+                      <button
+  onClick={() =>
+    updateQuantity(item.productId, item.quantity - 1, item.variantId)
+  }
+  className="p-1.5 hover:bg-gray-50 transition-colors"
+>
+  <Minus className="w-3 h-3 text-gray-600" />
+</button>
                         <span className="w-8 text-center text-xs font-semibold">
                           {item.quantity}
                         </span>
                         <button
-                          onClick={() => updateQuantity(item.productId, item.quantity + 1)}
-                          disabled={item.quantity >= item.stock}
-                          className="p-1.5 hover:bg-gray-50 transition-colors disabled:opacity-40"
-                        >
-                          <Plus className="w-3 h-3 text-gray-600" />
-                        </button>
+  onClick={() =>
+    updateQuantity(item.productId, item.quantity + 1, item.variantId)
+  }
+  disabled={item.quantity >= item.stock}
+  className="p-1.5 hover:bg-gray-50 transition-colors disabled:opacity-40"
+>
+  <Plus className="w-3 h-3 text-gray-600" />
+</button>
                       </div>
 
                       <button
-                        onClick={() => removeItem(item.productId)}
-                        className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+  onClick={() => removeItem(item.productId, item.variantId)}
+  className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+>
+  <Trash2 className="w-4 h-4" />
+</button>
                     </div>
                   </div>
                 </div>
