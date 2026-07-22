@@ -110,3 +110,25 @@ export const DISPLAY_TYPES = [
       )
     }) ?? false
   }
+
+
+
+
+/**
+ * Build the initial selectedOptions from a product's defaultVariant map.
+ * defaultVariant = { [typeId]: optionId, ... }
+ * Returns {} if no defaults set.
+ */
+export function getDefaultSelectedOptions(variationTypes, defaultVariant) {
+  if (!defaultVariant || !variationTypes?.length) return {}
+
+  const options = {}
+  variationTypes.forEach((vt) => {
+    if (defaultVariant[vt.id]) {
+      // Verify the optionId still exists in current options
+      const exists = vt.options?.find((o) => o.id === defaultVariant[vt.id])
+      if (exists) options[vt.id] = defaultVariant[vt.id]
+    }
+  })
+  return options
+}

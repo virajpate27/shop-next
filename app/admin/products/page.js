@@ -35,6 +35,7 @@ const EMPTY_FORM = {
   hasVariations: false,
   variationTypes: [],
   variants: [],
+  defaultVariant: {},
 };
 
 
@@ -52,6 +53,7 @@ export default function AdminProductsPage() {
   const [previewUrls, setPreviewUrls] = useState([]);
   const fileInputRef = useRef(null);
   const { categories } = useCategories()
+  const [defaultVariant, setDefaultVariant] = useState({})
 
   const [variationTypes, setVariationTypes] = useState([])
   const [variants, setVariants] = useState([])
@@ -78,6 +80,7 @@ export default function AdminProductsPage() {
     setPreviewUrls([]);
     setVariationTypes([])
     setVariants([])
+    setDefaultVariant({})  
     setShowModal(true);
   }
 
@@ -105,6 +108,7 @@ export default function AdminProductsPage() {
     setPreviewUrls(product.images || [])
     setVariationTypes(product.variationTypes || [])
     setVariants(product.variants || [])
+    setDefaultVariant(product.defaultVariant || {})
     setShowModal(true)
   }
 
@@ -185,6 +189,7 @@ export default function AdminProductsPage() {
           price: Number(v.price) || Number(form.price) || 0,
           stock: Number(v.stock) || 0,
         })) : [],
+        defaultVariant: form.hasVariations ? defaultVariant : {},
         stock: form.hasVariations
           ? variants.reduce((sum, v) => sum + (Number(v.stock) || 0), 0)
           : Number(form.stock),
@@ -570,6 +575,8 @@ export default function AdminProductsPage() {
                     variants={variants}
                     setVariants={setVariants}
                     basePrice={form.price}
+                    defaultVariant={defaultVariant}
+                    setDefaultVariant={setDefaultVariant}
                   />
                 </div>
               )}

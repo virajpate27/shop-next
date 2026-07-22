@@ -17,13 +17,17 @@ import { VariationSelector } from '@/components/products/VariationSelector'
 import { formatPrice, getDiscountPercent } from '@/utils/formatters'
 import { calculateTax } from '@/utils/tax'
 import { getOptimizedUrl } from '@/lib/cloudinary'
-import { findVariant, getVariantLabel } from '@/utils/variations'
+import { findVariant, getVariantLabel, getDefaultSelectedOptions } from '@/utils/variations'
+
+
 
 export function ProductDetailClient({ product, related }) {
   const addItem = useCartStore((s) => s.addItem)
   const { toggle, isWishlisted } = useWishlist()
 
-  const [selectedOptions, setSelectedOptions] = useState({})
+  const [selectedOptions, setSelectedOptions] = useState(() =>
+  getDefaultSelectedOptions(product.variationTypes, product.defaultVariant)
+)
   const [selectedImage,   setSelectedImage]   = useState(0)
   const [quantity,        setQuantity]        = useState(1)
 

@@ -13,11 +13,12 @@ export function VariationBuilder({
   variationTypes, setVariationTypes,
   variants, setVariants,
   basePrice,
+  defaultVariant, setDefaultVariant,
 }) {
-  const [expandedType,     setExpandedType]     = useState(null)
-  const [expandedVariant,  setExpandedVariant]  = useState(null)
-  const [uploadingId,      setUploadingId]       = useState(null) // optionId or variantId
-  const optionFileRefs  = useRef({})
+  const [expandedType, setExpandedType] = useState(null)
+  const [expandedVariant, setExpandedVariant] = useState(null)
+  const [uploadingId, setUploadingId] = useState(null) // optionId or variantId
+  const optionFileRefs = useRef({})
   const variantFileRefs = useRef({})
 
   // ── Variation type actions ──────────────────────────────────────────
@@ -293,8 +294,8 @@ export function VariationBuilder({
 
           <div className="space-y-3">
             {variants.map((variant) => {
-              const label        = getVariantLabel(variant)
-              const isExpanded   = expandedVariant === variant.id
+              const label = getVariantLabel(variant)
+              const isExpanded = expandedVariant === variant.id
               const variantImages = variant.images || []
 
               return (
@@ -351,11 +352,10 @@ export function VariationBuilder({
                       <button
                         type="button"
                         onClick={() => setExpandedVariant(isExpanded ? null : variant.id)}
-                        className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors ${
-                          isExpanded
+                        className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors ${isExpanded
                             ? 'bg-indigo-100 text-indigo-700'
                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
+                          }`}
                       >
                         <Images className="w-3.5 h-3.5" />
                         Images
@@ -466,6 +466,108 @@ export function VariationBuilder({
               </div>
             ))}
           </div>
+
+        </div>
+      )}
+
+      {/* ── Default variation selector ───────────────────────────── */}
+      {variants.length > 0 && (
+        <div className="border border-indigo-100 bg-indigo-50/50 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-2 h-2 bg-indigo-600 rounded-full" />
+            <p className="text-sm font-medium text-gray-700">
+              Default selected variation
+            </p>
+            <span className="text-xs text-gray-400">
+              (pre-selected when customer opens the product)
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {variationTypes.map((vType) => {
+              const currentDefault = defaultVariant?.[vType.id] || ''
+
+              return (
+                <div key={vType.id} className="flex items-center gap-3">
+                  <span className="text-sm text-gray-600 w-24 flex-shrink-0 font-medium">
+                    {vType.name}
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {/* None option */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDefaultVariant((prev) => {
+                          const updated = { ...prev }
+                          delete updated[vType.id]
+                          return updated
+                        })
+                      }
+                      className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${!currentDefault
+                          ? 'border-gray-400 bg-gray-100 text-gray-700'
+                          : 'border-gray-200 text-gray-400 hover:border-gray-300'
+                        }`}
+                    >
+                      None
+                    </button>
+
+                    {/* Each option */}
+                    {vType.options.map((opt) => {
+                      const isDefault = currentDefault === opt.id
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() =>
+                            setDefaultVariant((prev) => ({
+                              ...prev,
+                              [vType.id]: opt.id,
+                            }))
+                          }
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${isDefault
+                              ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm'
+                              : 'border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600'
+                            }`}
+                        >
+                          {/* Color dot for color type */}
+                          {vType.displayType === 'color' && opt.hex && (
+                            <span
+                              className="w-3 h-3 rounded-full border border-white/50 flex-shrink-0"
+                              style={{ backgroundColor: opt.hex }}
+                            />
+                          )}
+                          {opt.label}
+                          {isDefault && (
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Preview */}
+          {defaultVariant && Object.keys(defaultVariant).length > 0 && (
+            <div className="mt-3 pt-3 border-t border-indigo-100">
+              <p className="text-xs text-indigo-600">
+                <span className="font-medium">Default:</span>{' '}
+                {variationTypes
+                  .map((vt) => {
+                    const optId = defaultVariant[vt.id]
+                    if (!optId) return null
+                    const opt = vt.options.find((o) => o.id === optId)
+                    return opt ? `${vt.name}: ${opt.label}` : null
+                  })
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>
